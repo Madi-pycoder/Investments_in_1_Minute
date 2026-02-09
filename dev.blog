@@ -1,0 +1,204 @@
+Entry #1 — Idea & Research
+
+Date: 2025-12-17
+Stage: Project conception
+
+Defined the main problem in the CIS: beginners avoid investing due to fear and chaotic information.
+
+Decided to build a Telegram bot instead of a website — lower entry barrier for my region.
+
+Chose Python because of async ecosystem and finance libraries.
+
+Decisions:
+
+Target audience → Russian-speaking beginners
+
+Core feature → demo-portfolio with virtual $10,000
+
+Ethical focus → optional Shariah-compliance
+
+Learned:
+Product should start from people’s pain, not from technology.
+
+
+
+
+Entry #2 — First Aiogram Steps
+
+Date: 2026-01-12
+
+Initialized Aiogram project
+
+Created /start command
+
+Built first InlineKeyboard and Reply buttons
+
+Learned difference between message handlers and callback queries.
+
+Problems:
+
+Confusion between reply_markup types
+
+Bot answered twice because of duplicated handlers.
+
+Result:
+Working menu with “Stocks / ETFs / Demo”.
+
+
+
+
+
+Entry #3 — CallbackQuery Logic
+
+Date: 2026-01-24
+
+Implemented CallbackQuery routing
+
+Separated flows for stocks and ETFs
+
+Understood async handler lifecycle.
+
+Mistakes:
+
+Tried to use show_alert=True in wrong method
+
+Mixed message and callback contexts.
+
+Learned:
+
+Telegram UI = state machine, not just chat.
+
+
+  
+
+Entry #4 — Architecture Decision
+
+Date: 2026-01-26
+
+Split project into:
+
+handlers
+
+market service
+
+database layer
+
+Added SQLAlchemy async models.
+
+Reasoning:
+Didn’t want “one-file bot” → impossible to scale.
+
+
+
+
+  
+Entry #5 — FSM Registration
+
+Date: 2026-01-30
+
+Implemented FSM for:
+
+owner name
+
+demo name
+
+Connected FSM with DB.
+
+Breakthrough:
+User now can create portfolio step-by-step.
+
+
+
+
+
+  
+Entry #6 — SQL Hell (3 days)
+
+Date: 2026-01-31 – 02-02
+
+Problem:
+
+SQLite schema didn’t update
+
+Error: table has no column named portfolio_id
+
+Attempts:
+
+recreated DB
+
+learned migrations concept
+
+read SQLAlchemy docs
+
+Lesson:
+Database ≠ Python model. Schema must be recreated or migrated.
+
+
+
+
+
+
+  
+Entry #7 — Victory
+
+Date: 2026-02-03
+
+Fixed schema
+
+Registration + login fully working
+
+Portfolios persist between sessions.
+
+Feeling:
+First time the project felt “real”.
+
+Entry #8 — yFinance Integration
+
+Date: 2026-02-05
+
+Added real market data
+
+Separated logic for stocks vs ETFs
+
+Discovered that .info is unreliable → switched to .history().
+
+Learned:
+External APIs are messy.
+
+
+
+
+
+
+Entry #9 — Toward Analytics
+
+Date: 2024-02-05
+
+Designed list of metrics:
+
+P/E
+
+Debt/Equity
+
+EPS
+
+Planned beginner-friendly explanations.
+
+
+
+
+
+
+Entry #10 — MVP Ready
+
+Date: 2025-01-05
+
+All functions:
+
+Stocks
+
+ETFs
+
+Create demo-portfolio
+
+Log in demo-portfolio
