@@ -152,6 +152,9 @@ Portfolios persist between sessions.
 Feeling:
 First time the project felt “real”.
 
+
+
+
 Entry #8 — yFinance Integration
 
 Date: 2026-02-05
@@ -207,7 +210,7 @@ Log in demo-portfolio
 
 
 
-Entry #11 - UX connection
+Entry #11 - UX Connection
 
 Date: 2026-02-16
 
@@ -217,3 +220,50 @@ Analyze again
 
 Main menu
 
+
+
+
+
+Entry #12 - Buy/Sell logic
+
+Date: 2026-02-18
+
+Created functions after analysis with connection to database and portfolio:
+
+Buy
+
+Sell
+
+
+
+
+Entry #13 - Portfolio Reviews 
+
+Date: 2026-02-18
+
+Created functions with portfolio review
+
+All portfolio data:
+
+Cash
+
+Every asset:
+
+Quantity
+
+Purchase price
+
+Current price
+
+Value in portfolio
+
+P/L
+
+
+Invested cash
+
+Current value of investments
+
+Total P/L
+
+Total equity
