@@ -276,7 +276,7 @@ Entry #14 - UX modernization
 
 Date: 2026-02-21
 
-Modernized UX:
+Improved UX:
 
 Login portfolio choice
 
@@ -284,4 +284,20 @@ Login portfolio choice
 
 
 
+Entry #15 - Architecture udpate
 
+Date: 2026-02-23
+
+Optimized architecture after project's volume size reached to 900 lines
+
+Divided handlers.py into:
+
+mainstart.py - starting funtions
+
+markethandler.py - market data
+
+portfolio.py - portfolio overview
+
+trading.py - trading in portfolio
+
+accounts.py - login, registration and FSM
