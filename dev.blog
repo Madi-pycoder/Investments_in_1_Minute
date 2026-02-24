@@ -301,3 +301,20 @@ portfolio.py - portfolio overview
 trading.py - trading in portfolio
 
 accounts.py - login, registration and FSM
+
+
+
+
+
+
+Entry #16 - Sharia-screening fundament
+
+Date: 2026-02-24
+
+Added Sharia-screening for stocks
+
+Criterias:
+
+Business industry
+
+Debt ratio < 33%
