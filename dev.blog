@@ -307,14 +307,122 @@ accounts.py - login, registration and FSM
 
 
 
-Entry #16 - Sharia-screening fundament
+Entry #16 - Shariah-screening fundament
 
 Date: 2026-02-24
 
-Added Sharia-screening for stocks
+Added Shariah-screening for stocks
 
 Criterias:
 
 Business industry
 
-Debt ratio < 33%
+Debt ratio < 30%
+
+Investments with interest < 30%
+
+Interest < 5%
+
+Receivables < 49%
+
+
+
+
+
+Entry #17 — ETF Holdings Problem
+
+Date: 2026-02-25
+
+Discovered major issue:
+
+ETF holdings (VOO, QQQ, SPUS, HLAL) were loading only 10 positions.
+
+Investigation showed:
+
+Yahoo Finance API limitation
+
+Vanguard website timeouts
+
+HTTP 406 errors from Invesco
+
+Holdings parsing returning empty arrays
+
+Realization:
+Financial data providers are unreliable and inconsistent.
+
+Lesson:
+If product depends on external APIs — architecture must be resilient.
+
+
+
+
+
+
+Entry #18 — Batch Stock Processing
+
+Date: 2026-02-27
+
+Implemented stock_batch async loading system.
+
+Goal:
+Analyze full S&P 500 (VOO) in under 30 seconds.
+
+Improvements:
+
+Chunked tickers (100 per request)
+
+Reduced redundant API calls
+
+Optimized asset_profile + financialData fetching
+
+Cleaned balance-sheet parsing logic
+
+Result:
+
+501 holdings processed
+406 halal
+95 non-compliant
+
+Halal score: 81%
+
+Breakthrough:
+Full ETF Shariah screening became realistic.
+
+
+
+
+
+
+
+Entry #19 — First Full ETF Shariah Screening
+
+Date: 2026-03-01
+
+Successfully implemented full screening for:
+
+Vanguard ETF VOO
+
+S&P Dow Jones Indices S&P 500 structure
+
+Output example:
+
+Status: MOSTLY HALAL ⚠️
+Halal stocks: 406
+Non-compliant: 95
+Total analyzed: 501
+
+Realization:
+
+Shariah-compliance for ETFs is far more complex than for individual stocks.
+
+Key complexity:
+
+ETF ≠ company
+
+Must screen every underlying holding
+
+Need performance + accuracy balance
+
+Feeling:
+This is no longer “just a bot”.
+This is infrastructure.
