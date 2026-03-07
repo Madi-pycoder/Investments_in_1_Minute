@@ -426,3 +426,93 @@ Need performance + accuracy balance
 Feeling:
 This is no longer “just a bot”.
 This is infrastructure.
+
+
+
+
+Entry #20 - Advanced Risk Analytics
+
+Date: 2026-03-05
+
+Implemented a comprehensive portfolio risk management module using Python, NumPy, and Pandas.
+The system now performs multiple quantitative risk analyses for ETFs and portfolios.
+
+The following analytics were added:
+
+ETF Risk Metrics
+
+Annualized volatility
+
+Maximum drawdown
+
+Beta vs S&P 500
+
+Sharpe ratio
+
+Composite risk score
+
+Portfolio Risk Metrics
+
+Portfolio volatility (covariance matrix method)
+
+Diversification score (HHI index)
+
+Concentration risk analysis
+
+
+
+
+Entry #21 - Monte Carlo Portfolio Simulation
+
+Date: 2026-03-06
+
+Implemented a Monte Carlo engine to simulate future portfolio performance.
+
+Simulation features:
+
+5000 simulations
+
+252 trading days
+
+Correlated asset returns via Cholesky decomposition
+
+Metrics produced:
+
+Expected return
+
+Worst case scenario
+
+Value at Risk (95%)
+
+Expected Shortfall (CVaR)
+
+
+Enrty #22 - Stress-Testing Module + Portfolio Alerts System
+
+Date: 2026-03-07
+
+Added historical market crash simulations to evaluate portfolio resilience.
+
+Stress scenarios included:
+
+2008 Global Financial Crisis
+
+Dot-com Crash
+
+COVID-19 Market Crash
+
+Inflation Shock
+
+Mild Market Correction
+
+The stress test estimates portfolio loss under each scenario based on asset weights.
+
+
+
+Implemented automated alerts for:
+
+High volatility portfolios
+
+Poor diversification
+
+Excessive concentration
