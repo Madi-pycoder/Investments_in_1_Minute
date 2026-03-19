@@ -507,8 +507,6 @@ Mild Market Correction
 
 The stress test estimates portfolio loss under each scenario based on asset weights.
 
-
-
 Implemented automated alerts for:
 
 High volatility portfolios
@@ -516,3 +514,147 @@ High volatility portfolios
 Poor diversification
 
 Excessive concentration
+
+
+
+
+Entry #23 - Portfolio Perfomance Optimization
+
+Date: 2026-03-10
+
+Significantly improved portfolio loading speed.
+
+Key improvements:
+
+Implemented batch API requests for stock data (get_stocks_batch)
+
+Replaced sequential price fetching with asyncio.gather()
+
+Reduced response time from ~15–25s to ~3–5s
+
+Impact:
+
+Enabled near real-time portfolio analytics
+
+Improved user experience and scalability
+
+
+
+
+Entry #24 - Sector Allocation Visualization
+
+Date: 2026-03-11
+
+Added sector-level portfolio analytics.
+
+Features:
+
+Aggregates positions by sector
+
+Calculates sector weights dynamically
+
+Generates a sector allocation chart
+
+Impact:
+
+Improves portfolio transparency
+
+Helps identify concentration risks
+
+
+
+Entry #25 - Portfolio Rebalancing Engine
+
+Date: 2026-03-12
+
+Implemented automated portfolio rebalancing system.
+
+Features:
+
+Calculates deviation from target weights
+
+Suggests BUY/SELL actions
+
+Supports customizable allocation strategies
+
+Impact:
+
+Transforms the bot from passive tracker into active advisor
+
+
+
+
+
+Entry #26 - Shariah Compliance Filter
+
+Date: 2026-03-13
+
+Added Shariah-compliance screening system.
+
+Logic:
+
+Filters companies based on debt-to-asset ratio (<33%)
+
+Identifies non-compliant assets
+
+Impact:
+
+Enables ethical investing aligned with Islamic finance principles
+
+
+
+
+Entry #27 - Shariah Portfolio Optimization
+
+Date: 2026-03-14
+
+Implemented Shariah-based portfolio optimization.
+
+Features:
+
+Reallocates weights only among compliant assets
+
+Generates rebalancing strategy
+
+Impact:
+
+Combines ethical constraints with portfolio optimization
+
+
+
+
+Entry #28 - Halal Portfolio Generator
+
+Date: 2026-03-14
+
+Implemented Shariah-based portfolio optimization.
+
+Features:
+
+Reallocates weights only among compliant assets
+
+Generates rebalancing strategy
+
+Impact:
+
+Combines ethical constraints with portfolio optimization
+
+
+
+Enrty #29 - Risk-Based Optimization by Sharpe Ratio
+
+Date: 2026-03-16
+
+Implemented Sharpe ratio-based portfolio optimization.
+
+Logic:
+
+Calculates return and volatility
+
+Computes risk-adjusted performance
+
+Allocates weights based on Sharpe scores
+
+Impact:
+
+Introduces quantitative finance methodology into the system
