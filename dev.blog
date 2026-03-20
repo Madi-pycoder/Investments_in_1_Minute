@@ -623,9 +623,634 @@ Combines ethical constraints with portfolio optimization
 
 
 
-Entry #28 - Halal Portfolio Generator
+Entry #1 — Idea & Research
+
+Date: 2025-12-17
+Stage: Project conception
+
+Defined the main problem in the CIS: beginners avoid investing due to fear and chaotic information.
+
+Decided to build a Telegram bot instead of a website — lower entry barrier for my region.
+
+Chose Python because of async ecosystem and finance libraries.
+
+Decisions:
+
+Target audience → Russian-speaking beginners
+
+Core feature → demo-portfolio with virtual $10,000
+
+Ethical focus → optional Shariah-compliance
+
+Learned:
+Product should start from people’s pain, not from technology.
+
+
+
+
+Entry #2 — First Aiogram Steps
+
+Date: 2026-01-12
+
+Initialized Aiogram project
+
+Created /start command
+
+Built first InlineKeyboard and Reply buttons
+
+Learned difference between message handlers and callback queries.
+
+Problems:
+
+Confusion between reply_markup types
+
+Bot answered twice because of duplicated handlers.
+
+Result:
+Working menu with “Stocks / ETFs / Demo”.
+
+
+
+
+
+Entry #3 — CallbackQuery Logic
+
+Date: 2026-01-24
+
+Implemented CallbackQuery routing
+
+Separated flows for stocks and ETFs
+
+Understood async handler lifecycle.
+
+Mistakes:
+
+Tried to use show_alert=True in wrong method
+
+Mixed message and callback contexts.
+
+Learned:
+
+Telegram UI = state machine, not just chat.
+
+
+  
+
+Entry #4 — Architecture Decision
+
+Date: 2026-01-26
+
+Split project into:
+
+handlers
+
+market service
+
+database layer
+
+Added SQLAlchemy async models.
+
+Reasoning:
+Didn’t want “one-file bot” → impossible to scale.
+
+
+
+
+  
+Entry #5 — FSM Registration
+
+Date: 2026-01-30
+
+Implemented FSM for:
+
+owner name
+
+demo name
+
+Connected FSM with DB.
+
+Breakthrough:
+User now can create portfolio step-by-step.
+
+
+
+
+
+  
+Entry #6 — SQL Hell (3 days)
+
+Date: 2026-01-31 – 02-02
+
+Problem:
+
+SQLite schema didn’t update
+
+Error: table has no column named portfolio_id
+
+Attempts:
+
+recreated DB
+
+learned migrations concept
+
+read SQLAlchemy docs
+
+Lesson:
+Database ≠ Python model. Schema must be recreated or migrated.
+
+
+
+
+
+
+  
+Entry #7 — Victory
+
+Date: 2026-02-03
+
+Fixed schema
+
+Registration + login fully working
+
+Portfolios persist between sessions.
+
+Feeling:
+First time the project felt “real”.
+
+
+
+
+Entry #8 — yFinance Integration
+
+Date: 2026-02-05
+
+Added real market data
+
+Separated logic for stocks vs ETFs
+
+Discovered that .info is unreliable → switched to .history().
+
+Learned:
+External APIs are messy.
+
+
+
+
+
+
+Entry #9 — Toward Analytics
+
+Date: 2026-02-07
+
+Designed list of metrics:
+
+P/E
+
+Debt/Equity
+
+EPS
+
+Planned beginner-friendly explanations.
+
+
+
+
+
+
+Entry #10 — MVP Ready
+
+Date: 2026-02-08
+
+All functions:
+
+Stocks
+
+ETFs
+
+Create demo-portfolio
+
+Log in demo-portfolio
+
+
+
+
+
+Entry #11 - UX Connection
+
+Date: 2026-02-16
+
+Functions after analysis:
+
+Analyze again
+
+Main menu
+
+
+
+
+
+Entry #12 - Buy/Sell logic
+
+Date: 2026-02-18
+
+Created functions after analysis with connection to database and portfolio:
+
+Buy
+
+Sell
+
+
+
+
+Entry #13 - Portfolio Reviews 
+
+Date: 2026-02-18
+
+Created functions with portfolio review
+
+All portfolio data:
+
+Cash
+
+Every asset's:
+
+Quantity
+
+Purchase price
+
+Current price
+
+Value in portfolio
+
+P/L
+
+
+Invested cash
+
+Current value of investments
+
+Total P/L
+
+Total equity
+
+
+
+
+
+Entry #14 - UX modernization
+
+Date: 2026-02-21
+
+Improved UX:
+
+Login portfolio choice
+
+
+
+
+
+Entry #15 - Architecture udpate
+
+Date: 2026-02-23
+
+Optimized architecture after project's volume size reached to 900 lines
+
+Divided handlers.py into:
+
+mainstart.py - starting funtions
+
+markethandler.py - market data
+
+portfolio.py - portfolio overview
+
+trading.py - trading in portfolio
+
+accounts.py - login, registration and FSM
+
+
+
+
+
+
+Entry #16 - Shariah-screening fundament
+
+Date: 2026-02-24
+
+Added Shariah-screening for stocks
+
+Criterias:
+
+Business industry
+
+Debt ratio < 30%
+
+Investments with interest < 30%
+
+Interest < 5%
+
+Receivables < 49%
+
+
+
+
+
+Entry #17 — ETF Holdings Problem
+
+Date: 2026-02-26
+
+Discovered major issue:
+
+ETF holdings (VOO, QQQ, SPUS, HLAL) were loading only 10 positions.
+
+Investigation showed:
+
+Yahoo Finance API limitation
+
+Vanguard website timeouts
+
+HTTP 406 errors from Invesco
+
+Holdings parsing returning empty arrays
+
+Realization:
+Financial data providers are unreliable and inconsistent.
+
+Lesson:
+If product depends on external APIs — architecture must be resilient.
+
+
+
+
+
+
+Entry #18 — Batch Stock Processing
+
+Date: 2026-03-01
+
+Implemented stock_batch async loading system.
+
+Goal:
+Analyze full S&P 500 (VOO) in under 30 seconds.
+
+Improvements:
+
+Chunked tickers (100 per request)
+
+Reduced redundant API calls
+
+Optimized asset_profile + financialData fetching
+
+Cleaned balance-sheet parsing logic
+
+Result:
+
+501 holdings processed
+406 halal
+95 non-compliant
+
+Halal score: 81%
+
+Breakthrough:
+Full ETF Shariah screening became realistic.
+
+
+
+
+
+
+
+Entry #19 — First Full ETF Shariah Screening
+
+Date: 2026-03-04
+
+Successfully implemented full screening for:
+
+Vanguard ETF VOO
+
+S&P Dow Jones Indices S&P 500 structure
+
+Output example:
+
+Status: MOSTLY HALAL ⚠️
+Halal stocks: 406
+Non-compliant: 95
+Total analyzed: 501
+
+Realization:
+
+Shariah-compliance for ETFs is far more complex than for individual stocks.
+
+Key complexity:
+
+ETF ≠ company
+
+Must screen every underlying holding
+
+Need performance + accuracy balance
+
+Feeling:
+This is no longer “just a bot”.
+This is infrastructure.
+
+
+
+
+Entry #20 - Advanced Risk Analytics
+
+Date: 2026-03-05
+
+Implemented a comprehensive portfolio risk management module using Python, NumPy, and Pandas.
+The system now performs multiple quantitative risk analyses for ETFs and portfolios.
+
+The following analytics were added:
+
+ETF Risk Metrics
+
+Annualized volatility
+
+Maximum drawdown
+
+Beta vs S&P 500
+
+Sharpe ratio
+
+Composite risk score
+
+Portfolio Risk Metrics
+
+Portfolio volatility (covariance matrix method)
+
+Diversification score (HHI index)
+
+Concentration risk analysis
+
+
+
+
+Entry #21 - Monte Carlo Portfolio Simulation
+
+Date: 2026-03-06
+
+Implemented a Monte Carlo engine to simulate future portfolio performance.
+
+Simulation features:
+
+5000 simulations
+
+252 trading days
+
+Correlated asset returns via Cholesky decomposition
+
+Metrics produced:
+
+Expected return
+
+Worst case scenario
+
+Value at Risk (95%)
+
+Expected Shortfall (CVaR)
+
+
+Enrty #22 - Stress-Testing Module + Portfolio Alerts System
+
+Date: 2026-03-07
+
+Added historical market crash simulations to evaluate portfolio resilience.
+
+Stress scenarios included:
+
+2008 Global Financial Crisis
+
+Dot-com Crash
+
+COVID-19 Market Crash
+
+Inflation Shock
+
+Mild Market Correction
+
+The stress test estimates portfolio loss under each scenario based on asset weights.
+
+Implemented automated alerts for:
+
+High volatility portfolios
+
+Poor diversification
+
+Excessive concentration
+
+
+
+
+Entry #23 - Portfolio Perfomance Optimization
+
+Date: 2026-03-10
+
+Significantly improved portfolio loading speed.
+
+Key improvements:
+
+Implemented batch API requests for stock data (get_stocks_batch)
+
+Replaced sequential price fetching with asyncio.gather()
+
+Reduced response time from ~15–25s to ~3–5s
+
+Impact:
+
+Enabled near real-time portfolio analytics
+
+Improved user experience and scalability
+
+
+
+
+Entry #24 - Sector Allocation Visualization
+
+Date: 2026-03-11
+
+Added sector-level portfolio analytics.
+
+Features:
+
+Aggregates positions by sector
+
+Calculates sector weights dynamically
+
+Generates a sector allocation chart
+
+Impact:
+
+Improves portfolio transparency
+
+Helps identify concentration risks
+
+
+
+Entry #25 - Portfolio Rebalancing Engine
+
+Date: 2026-03-12
+
+Implemented automated portfolio rebalancing system.
+
+Features:
+
+Calculates deviation from target weights
+
+Suggests BUY/SELL actions
+
+Supports customizable allocation strategies
+
+Impact:
+
+Transforms the bot from passive tracker into active advisor
+
+
+
+
+
+Entry #26 - Shariah Compliance Filter
+
+Date: 2026-03-13
+
+Added Shariah-compliance screening system.
+
+Logic:
+
+Filters companies based on debt-to-asset ratio (<33%)
+
+Identifies non-compliant assets
+
+Impact:
+
+Enables ethical investing aligned with Islamic finance principles
+
+
+
+
+Entry #27 - Shariah Portfolio Optimization
 
 Date: 2026-03-14
+
+Implemented Shariah-based portfolio optimization.
+
+Features:
+
+Reallocates weights only among compliant assets
+
+Generates rebalancing strategy
+
+Impact:
+
+Combines ethical constraints with portfolio optimization
+
+
+
+
+Entry #28 - Halal Portfolio Generator
+
+Date: 2026-03-15
 
 Implemented Shariah-based portfolio optimization.
 
@@ -658,3 +1283,79 @@ Allocates weights based on Sharpe scores
 Impact:
 
 Introduces quantitative finance methodology into the system
+
+
+
+Entry #29 - Risk-Based Optimization by Sharpe Ratio
+
+Date: 2026-03-16
+
+Implemented Sharpe ratio-based portfolio optimization.
+
+Logic:
+
+Calculates return and volatility
+
+Computes risk-adjusted performance
+
+Allocates weights based on Sharpe scores
+
+Impact:
+
+Introduces quantitative finance methodology into the system
+
+
+
+
+
+Entry #30 — UX Upgrade + AI Portfolio Insights
+
+Date: 2026-03-20
+
+Implemented major UX improvements and introduced AI-powered portfolio insights.
+
+UX Improvements:
+
+Simplified Portfolio Overview structure
+
+Added per-asset P/L with visual indicators (🟢/🔴)
+
+Introduced “Top Gainers / Top Losers” section
+
+Reduced cognitive load by grouping data into:
+
+Overview
+
+Positions
+
+Actions
+
+Ideas
+
+Risk
+
+New Features:
+
+“Explain Portfolio” (AI-based insights)
+
+“One-tap Rebalance” system
+
+“Make Portfolio Halal” recommendations
+
+Sharpe-optimized portfolio suggestions
+
+Technical Improvements:
+
+Optimized API usage with async batching
+
+Added caching strategy to reduce AI costs
+
+Introduced modular UX text generation
+
+Impact:
+
+Transition from raw analytics → actionable insights
+
+Improved readability for beginner investors
+
+Reduced time-to-decision for users
