@@ -1112,7 +1112,7 @@ Value at Risk (95%)
 Expected Shortfall (CVaR)
 
 
-Enrty #22 - Stress-Testing Module + Portfolio Alerts System
+Entry #22 - Stress-Testing Module + Portfolio Alerts System
 
 Date: 2026-03-07
 
@@ -1266,24 +1266,6 @@ Combines ethical constraints with portfolio optimization
 
 
 
-Enrty #29 - Risk-Based Optimization by Sharpe Ratio
-
-Date: 2026-03-16
-
-Implemented Sharpe ratio-based portfolio optimization.
-
-Logic:
-
-Calculates return and volatility
-
-Computes risk-adjusted performance
-
-Allocates weights based on Sharpe scores
-
-Impact:
-
-Introduces quantitative finance methodology into the system
-
 
 
 Entry #29 - Risk-Based Optimization by Sharpe Ratio
@@ -1359,3 +1341,80 @@ Transition from raw analytics → actionable insights
 Improved readability for beginner investors
 
 Reduced time-to-decision for users
+
+
+
+
+
+Entry #31 — Goal-Based Investing Engine
+
+Date: 2026-03-23
+
+Implemented first version of goal-based investing system.
+
+Core idea:
+Shift from “portfolio tracking” → “goal achievement probability”.
+
+Features added:
+
+- Monte Carlo-based goal simulation
+- Probability of reaching financial target
+- Expected and worst-case outcomes
+- Monthly contribution calculator
+- Goal difficulty classification (Easy / Medium / Hard)
+
+Technical details:
+
+- Uses portfolio volatility from risk module
+- Simulates daily returns (252 trading days)
+- Supports customizable time horizon
+- Integrated into portfolio overview UI
+
+Example output:
+
+🎯 Target: $20,000 in 3 years
+Success: 62% 🟡 Medium
+Expected: $18,400
+Worst: $11,200
+Need: $320/month
+
+Impact:
+
+This transforms the product from:
+analytics tool → decision-making system
+
+
+
+
+Entry #32 — Goal UX Integration
+
+Date: 2026-03-26
+
+Integrated Goal-Based Investing into main portfolio UI.
+
+Changes:
+
+- Added “🎯 Goal Review” button
+- Embedded goal analysis into portfolio screen
+- Combined risk + simulation + goal insights in one flow
+
+UX Improvements:
+
+- Clear probability visualization
+- Monthly contribution guidance
+- Actionable tips for users
+
+Example tips:
+
+- Increase monthly investment
+- Extend time horizon
+- Reduce portfolio risk
+
+Insight:
+
+Users need guidance, not just metrics.
+
+Impact:
+
+Portfolio screen becomes:
+“Control panel for financial future”
