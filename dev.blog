@@ -1465,3 +1465,31 @@ Final Result:
 The product evolved into:
 
 Portfolio Tracker → Investment Advisor → Financial Decision Engine
+
+
+
+
+
+Entry #34 — Goal-Aware Portfolio Intelligence
+
+Date: 2026-03-27
+
+Problem:
+Portfolio metrics do not reflect whether users achieve real-life goals.
+
+Solution:
+Implemented goal-aware portfolio explanation layer.
+
+Features:
+
+- Connects portfolio risk + Monte Carlo with financial goals
+- Detects low-probability goals (<50%)
+- Generates personalized recommendations per goal
+- Highlights weakest goal in multi-goal setup
+
+Key Insight:
+Users do not optimize portfolios.
+They optimize life outcomes.
+
+Impact:
+System evolved into a goal-driven financial decision engine.
