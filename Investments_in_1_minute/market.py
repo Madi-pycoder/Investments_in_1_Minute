@@ -8,6 +8,48 @@ import ssl
 
 ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
+# ---------------------------
+# INDEX PROXIES (fast fallback)
+# ---------------------------
+
+SP500_TOP = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META",
+    "BRK-B", "LLY", "TSLA", "AVGO", "JPM", "UNH",
+    "V", "XOM", "MA", "PG", "COST", "HD", "MRK",
+    "ABBV", "ADBE", "CRM", "PEP", "KO", "AMD",
+    "NFLX", "TMO", "LIN", "MCD", "INTC"
+]
+
+NASDAQ_PROXY = [
+    "NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "GOOGL", "META",
+    "AVGO", "WMT", "MU", "TMUS", "LRCX", "AMD", "NFLX",
+    "CMCSA", "QCOM", "INTU"
+]
+
+
+async def get_index_proxy(ticker: str):
+
+    ticker = ticker.upper()
+
+    # 1. Direct mapping
+    if ticker in ["SPY", "VOO", "IVV", "SPLG"]:
+        return SP500_TOP
+
+    if ticker in ["QQQ"]:
+        return NASDAQ_PROXY
+
+    # 2. Smart guess based on ETF type
+    etf_type = await detect_etf_type(ticker)
+
+    if etf_type == "vanguard":
+        return SP500_TOP
+
+    if etf_type == "invesco":
+        return NASDAQ_PROXY
+
+    # 3. Universal fallback (random diversified subset)
+    universe = SP500_TOP + NASDAQ_PROXY
+    return universe[:30]
 
 # ---------------------------
 # 1. STOCK INFO
@@ -123,53 +165,114 @@ async def get_etf_info(ticker: str):
 # ---------------------------
 import asyncio
 
-async def fetch_chunk(chunk):
+async def fetch_chunk(chunk, retries=3):
 
-    t = Ticker(chunk, asynchronous=True)
-    modules = t.get_modules(
-        ["assetProfile", "financialData", "defaultKeyStatistics"]
-    )
+    for attempt in range(retries):
+        try:
+            t = Ticker(chunk, asynchronous=True)
 
-    result = {}
+            modules = t.get_modules(
+                ["assetProfile", "financialData", "defaultKeyStatistics"]
+            )
 
-    for ticker in chunk:
+            result = {}
 
-        data = modules.get(ticker, {})
-        if not isinstance(data, dict):
-            data = {}
+            for ticker in chunk:
+                data = modules.get(ticker, {}) or {}
 
-        profile = data.get("assetProfile", {})
-        financial = data.get("financialData", {})
-        stats = data.get("defaultKeyStatistics", {})
+                profile = data.get("assetProfile", {})
+                financial = data.get("financialData", {})
+                stats = data.get("defaultKeyStatistics", {})
 
-        result[ticker] = {
-            "industry": profile.get("industry"),
-            "sector": profile.get("sector"),
-            "market_cap": financial.get("marketCap") or stats.get("marketCap"),
-            "total_assets": financial.get("totalAssets"),
-            "total_debt": financial.get("totalDebt"),
-            "total_cash": financial.get("totalCash"),
-            "receivables": financial.get("totalReceivables"),
-        }
+                result[ticker] = {
+                    "industry": profile.get("industry"),
+                    "sector": profile.get("sector"),
+                    "market_cap": financial.get("marketCap") or stats.get("marketCap"),
+                    "total_assets": financial.get("totalAssets"),
+                    "total_debt": financial.get("totalDebt"),
+                    "total_cash": financial.get("totalCash"),
+                    "receivables": financial.get("totalReceivables"),
+                }
 
-    return result
+            STOCKS_CACHE.update(result)
+
+        except Exception as e:
+            print(f"Retry {attempt+1} for chunk failed:", e)
+            await asyncio.sleep(1.5 * (attempt + 1))
+
+    print("Chunk полностью упал:", chunk)
+    return {}
+
+
+semaphore = asyncio.Semaphore(3)
+STOCKS_CACHE = {}
+
+async def fetch_chunk_limited(chunk):
+    missing = [t for t in chunk if t not in STOCKS_CACHE]
+
+    if not missing:
+        return {t: STOCKS_CACHE[t] for t in chunk}
+
+    async with semaphore:
+        return await fetch_chunk(chunk)
+
+
 
 
 async def get_stocks_batch(tickers):
-
-    chunk_size = 100
+    chunk_size = 50
     chunks = [tickers[i:i+chunk_size] for i in range(0, len(tickers), chunk_size)]
 
-    tasks = [fetch_chunk(chunk) for chunk in chunks]
+    tasks = [fetch_chunk_limited(chunk) for chunk in chunks]
 
-    all_results = await asyncio.gather(*tasks)
+    all_results = await asyncio.gather(*tasks, return_exceptions=True)
 
     result = {}
+
     for r in all_results:
+        if isinstance(r, Exception):
+            print("Chunk error:", r)
+            continue
         result.update(r)
 
-    print("Loaded stock data:", len(result))
-    return result
+
+
+    if len(result) == 0:
+        print("⚠️ Yahoo полностью упал → fallback")
+
+        return {
+            t: {
+                "industry": None,
+                "sector": None,
+                "market_cap": None,
+                "total_assets": None,
+                "total_debt": None,
+                "total_cash": None,
+                "receivables": None,
+            }
+            for t in tickers
+        }
+
+    final = {}
+
+    for t in tickers:
+        if t in result:
+            final[t] = result[t]
+        elif t in STOCKS_CACHE:
+            final[t] = STOCKS_CACHE[t]["data"]
+        else:
+            # fallback proxy-level
+            final[t] = {
+                "industry": None,
+                "sector": None,
+                "market_cap": None,
+                "total_assets": None,
+                "total_debt": None,
+                "total_cash": None,
+                "receivables": None,
+            }
+
+    return final
 
 
 async def detect_etf_type(ticker):
@@ -408,20 +511,59 @@ async def get_etf_holdings(etf_ticker):
     ticker = etf_ticker.upper()
 
     if ticker in INDEX_MAP:
-        print("USING INDEX BACKEND")
         holdings = await INDEX_MAP[ticker]()
         return validate_and_normalize(holdings)
 
-    # fallback для всего остального
     holdings = await load_yahoo_full_holdings(ticker)
-    return validate_and_normalize(holdings)
+
+    if holdings:
+        print(f"Using Yahoo + proxy hybrid ({len(holdings)})")
+
+        base = validate_and_normalize(holdings)
+
+        proxy = await get_index_proxy(ticker)
+
+        existing = {h["ticker"] for h in base}
+
+        extra = [t for t in proxy if t not in existing]
+
+        extra = extra[:30]
+
+        if extra:
+            weight_extra = 0.3
+            weight_base = 0.7
+
+            base = [
+                {"ticker": h["ticker"], "weight": h["weight"] * weight_base}
+                for h in base
+            ]
+
+            extra_part = [
+                {"ticker": t, "weight": weight_extra / len(extra)}
+                for t in extra
+            ]
+
+            return base + extra_part
+
+        return base
+
+    if not holdings:
+        print("⚠️ Yahoo holdings fail → proxy fallback")
+
+        proxy = await get_index_proxy(ticker)
+
+        return [
+            {"ticker": t, "weight": 1 / len(proxy)}
+            for t in proxy
+        ]
+
 
 # ---------------------------
 # 7. GET ETF HOLDINGS С SHARIAH-SCREENING
 # ---------------------------
 async def get_etf_holdings_shariah(etf_ticker, shariah_filter=None):
 
-    holdings = await get_etf_holdings(etf_ticker)  # универсальный 100% coverage
+    holdings = await get_etf_holdings(etf_ticker)
 
     if holdings is None or len(holdings) == 0:
         print(f"No holdings for {etf_ticker}")
