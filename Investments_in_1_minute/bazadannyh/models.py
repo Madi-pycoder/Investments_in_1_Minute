@@ -1,10 +1,10 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, String, Float, ForeignKey, DateTime, Boolean, func
+from sqlalchemy import BigInteger, String, Float, ForeignKey, DateTime, Boolean, func, Integer
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncAttrs, create_async_engine, async_sessionmaker
 
 engine = create_async_engine(
-    "YOUR_DATABASE",
+    "sqlite+aiosqlite:///db1.sqlite3",
     echo=True
 )
 
@@ -97,6 +97,18 @@ class Transaction(Base):
         DateTime,
         server_default=func.now()
     )
+
+class Goal(Base):
+    __tablename__ = "goals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"))
+
+    name: Mapped[str] = mapped_column(String)
+    amount: Mapped[float] = mapped_column(Float)
+    years: Mapped[int] = mapped_column(Integer)
+    priority: Mapped[int] = mapped_column(Integer)
+    compliance: Mapped[str] = mapped_column(String)
 
 
 async def async_main():
