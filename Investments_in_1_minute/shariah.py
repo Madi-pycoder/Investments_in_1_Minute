@@ -97,6 +97,8 @@ def calculate_score(results):
 
     percent = int((score / max_score) * 100)
 
+
+
     return percent
 
 
@@ -183,9 +185,18 @@ def shariah_screen(stock):
 
 
 STOCK_CACHE = {}
+ETF_CACHE = {}
+SHARIAH_ETFS = {
+        "SPUS", "HLAL", "SPRE", "SPSK", "UMMA"
+    }
 
-async def shariah_screen_etf_full(etf_ticker, get_stock_info, get_etf_holdings):
+async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
     holdings = await get_etf_holdings(etf_ticker)
+
+    key = etf_ticker
+
+    if key in ETF_CACHE:
+        return ETF_CACHE[key]
 
     print("DEBUG holdings count:", len(holdings) if holdings else 0)
 
@@ -198,15 +209,38 @@ async def shariah_screen_etf_full(etf_ticker, get_stock_info, get_etf_holdings):
             "haram_stocks": 0,
             "total_analyzed": 0,
             "reason": "No holdings data"
-
         }
+
+    if etf_ticker.upper() in SHARIAH_ETFS:
+        return {
+            "status": "HALAL ✅",
+            "score": 100,
+            "halal_percent": 100,
+            "halal_stocks": None,
+            "haram_stocks": 0,
+            "total_analyzed": None,
+            "note": "Pre-screened Shariah ETF"
+        }
+
+    holdings = sorted(holdings, key=lambda x: x["weight"], reverse=True)
+
+    filtered = []
+    covered = 0
+
+    for h in holdings:
+        if covered >= 0.90 or len(filtered) >= 100:
+            break
+        filtered.append(h)
+        covered += h["weight"]
+
+    holdings = filtered
+
 
     tickers = [h["ticker"] for h in holdings]
 
-    stocks_data = await get_stocks_batch(tickers)
 
-    MAX_WEIGHT_COVERAGE = 0.995
-    MAX_STOCKS = 300
+    MAX_WEIGHT_COVERAGE = 0.90
+    MAX_STOCKS = 100
 
     covered_weight = 0
 
@@ -216,6 +250,10 @@ async def shariah_screen_etf_full(etf_ticker, get_stock_info, get_etf_holdings):
     halal_count = 0
     haram_count = 0
 
+
+    stocks_data = await get_stocks_batch(tickers)
+
+    holdings = sorted(holdings, key=lambda x: x["weight"], reverse=True)
 
     for holding in holdings:
 
@@ -248,8 +286,10 @@ async def shariah_screen_etf_full(etf_ticker, get_stock_info, get_etf_holdings):
             haram_count += 1
 
 
+
     print("Weight covered:", covered_weight)
     total = halal_count + haram_count
+
 
     if total_weight == 0:
         return {
@@ -277,6 +317,7 @@ async def shariah_screen_etf_full(etf_ticker, get_stock_info, get_etf_holdings):
     else:
         status = "NOT HALAL ❌"
 
+
     return {
         "status": status,
         "score": int(halal_percent),
@@ -285,9 +326,6 @@ async def shariah_screen_etf_full(etf_ticker, get_stock_info, get_etf_holdings):
         "haram_stocks": haram_count,
         "total_analyzed": total
     }
-
-
-
 
 
 def check_receivables(receivables, market_cap):
