@@ -23,11 +23,27 @@ after_analysis = InlineKeyboardMarkup(inline_keyboard=[
 
 after_portfolio_action = InlineKeyboardMarkup(
     inline_keyboard=[
+
         [
-            InlineKeyboardButton(text="🧠 Explain My Portfolio", callback_data="explain_portfolio"),
+            InlineKeyboardButton(text="🧠 Diagnosis", callback_data="explain_portfolio"),
+            InlineKeyboardButton(text="🔮 What-If", callback_data="what_if"),
         ],
+
+
         [
-            InlineKeyboardButton(text="⚖️ Rebalance in 1-Tap", callback_data="rebalance_now"),
+            InlineKeyboardButton(text="🤖 Auto-Invest", callback_data="auto_invest"),
+            InlineKeyboardButton(text="🎯 Fix Goal", callback_data="goal_fix"),
         ],
+
+
+        [
+            InlineKeyboardButton(text="⚖️ Smart Rebalance", callback_data="rebalance_now"),
+            InlineKeyboardButton(text="🕌 Shariah", callback_data="rebalance_shariah"),
+        ],
+
+
+        [
+            InlineKeyboardButton(text="📈 Goals", callback_data="goal_settings"),
+        ]
     ]
 )
