@@ -2,21 +2,53 @@ import yfinance as yf
 import numpy as np
 import pandas as pd
 
+history_cache = {}
+
+def safe_history(ticker, period="1y"):
+    key = f"{ticker}_{period}"
+
+    if key in history_cache:
+        return history_cache[key]
+
+    try:
+        hist = yf.download(ticker, period=period, progress=False)
+
+        if hist is None or not hasattr(hist, "empty") or hist.empty:
+            return None
+
+        history_cache[key] = hist
+        return hist
+
+    except Exception:
+        return None
+
+
+def ensure_series(data):
+    if isinstance(data, pd.DataFrame):
+        return data.iloc[:, 0]
+    return data
+
+
 
 # ---------------------------
 # 1. VOLATILITY
 # ---------------------------
 async def calculate_volatility(ticker: str, period="1y"):
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period=period)
+    hist = yf.download(ticker, period=period, progress=False)
 
     if hist.empty:
         return None
 
-    returns = hist["Close"].pct_change().dropna()
+    returns = ensure_series(hist["Close"].pct_change().dropna())
+
+
+    if isinstance(returns, pd.DataFrame):
+        returns = returns.iloc[:, 0]
+
     daily_vol = returns.std()
 
     annual_vol = daily_vol * np.sqrt(252)
+
     return round(float(annual_vol * 100), 2)
 
 
@@ -24,17 +56,23 @@ async def calculate_volatility(ticker: str, period="1y"):
 # 2. MAX DRAWDOWN
 # ---------------------------
 async def calculate_max_drawdown(ticker: str, period="5y"):
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period=period)
+    hist = yf.download(ticker, period=period, progress=False)
 
     if hist.empty:
         return None
 
-    cumulative = hist["Close"] / hist["Close"].iloc[0]
+    close = ensure_series(hist["Close"])
+
+
+    if isinstance(close, pd.DataFrame):
+        close = close.iloc[:, 0]
+
+    cumulative = close / close.iloc[0]
     peak = cumulative.cummax()
     drawdown = (cumulative - peak) / peak
 
     max_dd = drawdown.min()
+
     return round(float(max_dd * 100), 2)
 
 
@@ -135,14 +173,12 @@ async def calculate_etf_risk(ticker: str):
 # 5. SHARPE RATIO
 # ---------------------------
 async def calculate_sharpe_ratio(ticker: str, period="1y", risk_free_rate=0.02):
-
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period=period)
+    hist = yf.download(ticker, period=period, progress=False)
 
     if hist.empty:
         return None
 
-    returns = hist["Close"].pct_change().dropna()
+    returns = ensure_series(hist["Close"].pct_change().dropna())
 
     excess_returns = returns - (risk_free_rate / 252)
 
@@ -186,7 +222,16 @@ async def calculate_portfolio_volatility(positions):
         weight = pos["weight"]
 
         stock = yf.Ticker(ticker)
-        hist = stock.history(period="1y")
+        try:
+            hist = safe_history(ticker, "1y")
+            if hist is None:
+                continue
+
+            if hist is None or hist.empty:
+                continue
+
+        except Exception:
+            continue
 
         if hist.empty:
             continue
@@ -194,7 +239,7 @@ async def calculate_portfolio_volatility(positions):
         prices[ticker] = hist["Close"].pct_change().dropna()
         weights.append(weight)
 
-    if not prices:
+    if not prices or len(prices) < 2:
         return None
 
     df = pd.DataFrame(prices).dropna()
@@ -316,7 +361,7 @@ def generate_risk_alerts(risk):
     if risk["volatility"] and risk["volatility"] > 30:
         alerts.append("⚠️ Portfolio volatility is very high")
 
-    if risk["diversification"] and risk["diversification"] < 40:
+    if risk.get("diversification", 0) < 40:
         alerts.append("⚠️ Portfolio poorly diversified")
 
     if risk["concentration"] in ["HIGH 🟠", "EXTREME 🔴"]:
@@ -333,15 +378,32 @@ async def calculate_optimal_weights(positions):
     returns = {}
 
     for ticker in tickers:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="1y")
+        hist = safe_history(ticker, "1y")
+        if hist is None:
+            continue
 
         if hist.empty:
             continue
 
-        returns[ticker] = hist["Close"].pct_change().dropna()
+
+        r = hist["Close"].pct_change().dropna()
+
+        if isinstance(r, pd.DataFrame):
+            r = r.iloc[:, 0]
+
+        returns[ticker] = r
+
+
+    if not returns:
+        return None
+
+
 
     df = pd.DataFrame(returns).dropna()
+
+    if df.empty:
+        return None
+
 
     mean_returns = df.mean()
     cov_matrix = df.cov()
@@ -385,15 +447,31 @@ async def calculate_efficient_frontier(positions, simulations=500):
     returns = {}
 
     for ticker in tickers:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="1y")
+        hist = safe_history(ticker, "1y")
+        if hist is None:
+            continue
 
         if hist.empty:
             continue
 
-        returns[ticker] = hist["Close"].pct_change().dropna()
+        r = hist["Close"].pct_change().dropna()
+
+        if isinstance(r, pd.DataFrame):
+            r = r.iloc[:, 0]
+
+        returns[ticker] = r
+
+
+    if not returns:
+        return None
+
+
 
     df = pd.DataFrame(returns).dropna()
+
+    if df.empty:
+        return None
+
 
     mean_returns = df.mean()
     cov_matrix = df.cov()
@@ -428,9 +506,9 @@ async def calculate_efficient_frontier(positions, simulations=500):
 # ---------------------------
 # MONTE CARLO PORTFOLIO SIMULATION
 # ---------------------------
-async def monte_carlo_portfolio(positions, simulations=5000, days=252):
+async def monte_carlo_portfolio(positions, simulations=300, days=126):
 
-    if not positions:
+    if not positions or len(positions) < 2:
         return None
 
     tickers = [p["ticker"] for p in positions]
@@ -439,18 +517,35 @@ async def monte_carlo_portfolio(positions, simulations=5000, days=252):
 
     for ticker in tickers:
 
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period="1y")
+        hist = safe_history(ticker, "1y")
+        if hist is None:
+            continue
 
         if hist.empty:
             continue
 
-        returns[ticker] = hist["Close"].pct_change().dropna()
+        r = hist["Close"].pct_change().dropna()
+
+        if isinstance(r, pd.DataFrame):
+            r = r.iloc[:, 0]
+
+        returns[ticker] = r
+
 
     if not returns:
         return None
 
+
+    if not returns:
+        return None
+
+
+
     df = pd.DataFrame(returns).dropna()
+
+    if df.empty:
+        return None
+
 
     valid_tickers = list(df.columns)
 
