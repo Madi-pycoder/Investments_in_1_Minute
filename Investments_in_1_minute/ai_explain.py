@@ -1,79 +1,116 @@
-import os
-import time
-from openai import AsyncOpenAI
-from cache import make_cache_key, get_cache, set_cache
-
-MAX_ASSETS_FOR_AI = 8
-DAILY_LIMIT = 5
-
-client = AsyncOpenAI(api_key=os.getenv("API_KEY"))
-
-USER_LIMITS = {}
-
-
-async def explain_portfolio_ai(positions_data, risk, monte_carlo):
+def explain_portfolio_logic(positions_data, risk, monte_carlo, goals=None, goal_results=None, top_sector=None, top_sector_weight=0):
 
     if not positions_data:
-        return "No data to analyze."
+        return "No data."
+
+    insights = []
+    actions = []
+
+    risk = risk or {}
+    monte_carlo = monte_carlo or {}
+    top_weight = max(p.get("weight", 0) for p in positions_data)
+    vol = risk.get("volatility", 0)
+    if monte_carlo:
+        expected = monte_carlo.get("expected_return", 0)
+        worst = monte_carlo.get("worst_case", 0)
+    else:
+        expected = 0
+        worst = 0
 
 
-    positions_data = sorted(
-        positions_data,
-        key=lambda x: x.get("value", 0),
-        reverse=True
-    )[:MAX_ASSETS_FOR_AI]
+    if top_weight > 0.4:
+        insights.append("Your portfolio is highly concentrated in one asset.")
 
-    cache_key = make_cache_key(positions_data, risk, monte_carlo)
+    if len(positions_data) < 4:
+        insights.append("You have low diversification across assets.")
 
-    cached = get_cache(cache_key)
-    if cached:
-        return cached
+    if vol > 25:
+        insights.append("Portfolio risk is high with elevated volatility.")
+    elif vol < 10:
+        insights.append("Portfolio is very stable but may limit growth.")
 
-    positions_str = "\n".join([
-        f"{p['ticker']}: {round(p.get('weight', 0)*100,1)}%"
-        for p in positions_data
-    ])
+    if expected > 12:
+        insights.append("Strong growth potential detected.")
+    elif expected < 5:
+        insights.append("Expected returns are relatively low.")
 
-    prompt = f"""
-Portfolio:
-{positions_str}
+    if worst < -20:
+        insights.append("Significant downside risk in worst-case scenarios.")
 
-Risk: vol {risk.get('volatility', 0)}, score {risk.get('risk_score', 0)}
-Return: {monte_carlo.get('expected_return', 0)}%, worst {monte_carlo.get('worst_case', 0)}%
-
-Explain simply + give exactly 3 actionable improvements.
-"""
-
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt.strip()}],
-            temperature=0.4,
-            max_tokens=180
+    if top_sector and top_sector_weight > 0.35:
+        insights.append(
+            f"Your portfolio is overexposed to {top_sector} ({int(top_sector_weight * 100)}%)."
         )
 
-        result = response.choices[0].message.content
-
-        set_cache(cache_key, result)
-
-        return result
-
-    except Exception:
-        return "⚠️ AI temporarily unavailable. Try later."
+        if worst < -15:
+            insights.append(
+                f"This sector concentration increases drawdown risk (~{abs(int(worst))}%)."
+            )
 
 
-def check_user_limit(user_id):
+    goal_block = ""
 
-    now = int(time.time() // 86400)
+    if goals and goal_results:
+        goal_block += "\n🎯 Goal Analysis:\n"
 
-    if user_id not in USER_LIMITS:
-        USER_LIMITS[user_id] = {"day": now, "count": 0}
+        for r in goal_results:
+            g = r["goal"]
+            prob = r["simulation"]["probability"]
 
-    if USER_LIMITS[user_id]["day"] != now:
-        USER_LIMITS[user_id] = {"day": now, "count": 0}
+            if prob < 50:
+                insights.append(f"You are unlikely to reach '{g['name']}' ({prob}%).")
+                actions.append(f"Increase investment or adjust strategy for '{g['name']}'.")
 
-    if USER_LIMITS[user_id]["count"] >= DAILY_LIMIT:
-        return False
+            elif prob < 75:
+                insights.append(f"'{g['name']}' is achievable but not secure ({prob}%).")
 
-    USER_LIMITS[user_id]["count"] += 1
-    return True
+
+        worst_goal = min(goal_results, key=lambda x: x["simulation"]["probability"])
+        goal_block += (
+            f"⚠️ Weakest goal: {worst_goal['goal']['name']} "
+            f"({worst_goal['simulation']['probability']}%)\n"
+        )
+
+
+    if top_weight > 0.4:
+        actions.append("Reduce exposure to your largest position.")
+
+    if len(positions_data) < 4:
+        actions.append("Add more assets to improve diversification.")
+
+    if vol > 25:
+        actions.append("Shift part of the portfolio to lower-risk assets.")
+
+    if expected < 5:
+        actions.append("Increase allocation to growth-oriented assets.")
+
+    if not actions:
+        actions.append("Your portfolio is well balanced.")
+
+    actions = actions[:3]
+
+
+    score = 100
+    if top_weight > 0.4:
+        score -= 20
+    if vol > 25:
+        score -= 20
+    if len(positions_data) < 4:
+        score -= 15
+
+
+    text = f"🧠 AI Portfolio Analysis\n\n"
+    text += f"📊 Score: {score}/100\n\n"
+
+    text += "🔍 Key Insights:\n"
+    for i in insights[:3]:
+        text += f"• {i}\n"
+
+    if goal_block:
+        text += goal_block + "\n"
+
+    text += "⚖️ Suggested Actions:\n"
+    for a in actions:
+        text += f"• {a}\n"
+
+    return text
