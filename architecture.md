@@ -83,3 +83,22 @@ metrics dict
 build_portfolio_text()
       ↓
 Telegram respo
+
+
+
+
+
+3. Goal Engine (Core Innovation)
+Components:
+1. Simulation Engine
+Monte Carlo
+Probability of success
+2. Goal Analyzer
+Difficulty classification
+Monthly contribution required
+3. Optimizer
+Risk vs contribution tradeoff
+Multi-goal balancing
+4. Behavior Layer
+Smart nudges
+What-if scenarios
