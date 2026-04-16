@@ -1049,3 +1049,109 @@ User can grow his net worth
 Chances of goal achievment rised
 UX upgrade
 
+
+
+
+
+Entry #39 — Market Data Stability Fix
+
+Date: 2026-04-15
+
+Problem:
+Market data pipeline became unreliable:
+Frequent "Ticker not found" errors
+Yahoo Finance started rate-limiting / breaking endpoints
+yfinance and yahooquery inconsistencies
+Empty responses → system collapse
+
+
+Solution:
+Implemented multi-layer fallback architecture:
+1. Data resilience
+Safe wrappers (safe_history, safe_close)
+Validation for empty / broken responses
+2. Batch + cache system
+Chunk loading (get_stocks_batch)
+Retry logic с exponential backoff
+In-memory cache (STOCKS_CACHE)
+3. ETF fallback logic
+Proxy portfolios (S&P 500 / NASDAQ)
+Smart ETF detection (detect_etf_type)
+Hybrid holdings (Yahoo + proxy)
+4. External fallback sources
+CSV loaders (S&P 500 / NASDAQ-100)
+Shariah ETF fallback endpoints
+Universal fallback allocation
+
+
+Results:
+System crashes → Fully resilient
+Single-point-of-failure → Multi-source architecture
+Missing data → Always returns usable output
+
+System now:
+Works even if Yahoo partially/fully fails
+Provides degraded but usable analytics
+Stable for production usage
+
+
+
+
+
+
+Entry #40 — Goal Engine Fix & What-If System
+
+Date: 2026-04-16
+
+Problem:
+
+Goal simulation system produced misleading results:
+“0.0% probability” in almost all cases
+What-If scenarios showed no change
+Monthly contributions incorrectly applied
+Unrealistic simulation behavior
+
+Core issues:
+Contributions added to all future timesteps at once
+Incorrect probability delta calculation
+Poor handling of edge cases (0% probability)
+UX didn’t explain impossible goals
+
+
+Solution:
+
+1. Fixed simulation logic
+Corrected contribution model:
+Now applied at discrete time steps (monthly)
+Removed redundant calculations
+Clean Monte Carlo structure
+
+
+2. What-If system fix
+Correct delta calculation vs base scenario
+Proper comparison even when base = 0%
+
+
+3. UX improvements
+Added interpretation layer:
+Detects unrealistic goals
+Improved probability feedback
+Integrated nudges system
+
+
+4. System integration
+Connected with:
+Auto-Invest
+Goal Fix
+Portfolio optimization
+
+
+Results:
+Fake 0% probabilities → Realistic outcomes
+Broken What-If → Meaningful scenario analysis
+Confusing UX → Actionable insights
+
+System now:
+Produces realistic goal probabilities
+Explains outcomes to user
+Enables decision-making (invest more / extend time / reduce risk)
