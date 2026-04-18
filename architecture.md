@@ -90,15 +90,46 @@ Telegram respo
 
 3. Goal Engine (Core Innovation)
 Components:
-1. Simulation Engine
+1. Simulation Engine:
 Monte Carlo
 Probability of success
-2. Goal Analyzer
+2. Goal Analyzer:
 Difficulty classification
 Monthly contribution required
-3. Optimizer
+3. Optimizer:
 Risk vs contribution tradeoff
 Multi-goal balancing
-4. Behavior Layer
+4. Behavior Layer:
 Smart nudges
 What-if scenarios
+
+
+
+
+4. Key System Concepts
+
+4.1 Portfolio → Goals Mapping
+
+Portfolio is not evaluated by return only.
+Instead:
+"Can this portfolio achieve your goals?"
+
+4.2 Action-Oriented Design
+
+Every insight must lead to action:
+Low probability → Increase contribution
+High risk → Reduce volatility
+Imbalance → Rebalance
+
+4.3 Async Performance Model
+
+Heavy computations run concurrently:
+Risk
+Sharpe optimization
+Halal portfolio generation
+Using:
+asyncio.gather()
+
+
+
+
