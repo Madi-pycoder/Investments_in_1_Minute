@@ -1155,3 +1155,108 @@ System now:
 Produces realistic goal probabilities
 Explains outcomes to user
 Enables decision-making (invest more / extend time / reduce risk)
+
+
+
+
+
+
+Entry #41 — Portfolio Risk Engine Stabilization
+
+Date: 2026-04-18
+
+Problem:
+
+Portfolio risk system was unstable and could crash during real usage:
+
+* ValueError: If using all scalar values, you must pass an index
+* Portfolio volatility calculation randomly failed
+* Monte Carlo sometimes broke on same datasets
+* Rebalance comparison зависал или падал
+
+
+Root Cause:
+
+Data inconsistency in risk pipeline:
+
+1. Mixed data types in returns
+    yfinance sometimes returned:
+        Series
+        DataFrame
+        scalar values
+    pct_change() on malformed data → invalid structures
+2. Invalid inputs for pandas
+    prices dict contained scalars instead of time series
+    pd.DataFrame(prices) failed without index
+3. Unvalidated market data
+    Empty / short history (<2 points)
+    Corrupted or partial responses
+
+
+Solution:
+
+1. Data normalization layer
+
+Introduced strict validation:
+ensure_series() applied consistently
+Created safe returns pipeline:
+    Close → Series → pct_change()
+    Reject invalid outputs
+
+2. Input filtering
+
+Before adding to model:
+Skip:
+    empty history
+    non-Series data
+    short time series
+
+if not isinstance(returns, pd.Series) or len(returns) < 2:
+    continue
+
+
+3. Safe DataFrame construction
+
+Added defensive checks:
+Minimum assets required (>=2)
+Validation before DataFrame creation
+Post-cleaning (dropna())
+
+
+4. Weight alignment fix
+
+Weights now:
+aligned only with valid tickers
+normalized after filtering
+
+
+Results:
+
+Crashes in risk engine → eliminated
+Volatility calculation → stable
+Monte Carlo → consistent behavior
+Rebalance comparison → reliable
+
+
+System impact:
+
+Risk module is now production-safe
+Handles:
+    partial market failures
+    corrupted data
+    inconsistent API responses
+
+
+Architectural Insight:
+
+In financial systems, data validation is not optional —
+it is part of the core logic, not a wrapper.
+
+
+Status:
+
+Stable
+Integrated with:
+	Smart Rebalance
+	Goal Engine
+	AI Portfolio Analysis
