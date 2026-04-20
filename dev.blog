@@ -1169,10 +1169,10 @@ Problem:
 
 Portfolio risk system was unstable and could crash during real usage:
 
-* ValueError: If using all scalar values, you must pass an index
-* Portfolio volatility calculation randomly failed
-* Monte Carlo sometimes broke on same datasets
-* Rebalance comparison зависал или падал
+ValueError: If using all scalar values, you must pass an index
+Portfolio volatility calculation randomly failed
+Monte Carlo sometimes broke on same datasets
+Rebalance comparison зависал или падал
 
 
 Root Cause:
@@ -1260,3 +1260,94 @@ Integrated with:
 	Smart Rebalance
 	Goal Engine
 	AI Portfolio Analysis
+
+
+
+
+
+
+Entry #42 — Smart Auto-Invest Engine Upgrade
+
+Date: 2026-04-20
+
+Problem:
+
+Auto-Invest system technically worked, but produced unusable plans:
+
+Extremely small allocations ($0.28, $0.53, etc.)
+Fixed monthly amount ($300) ignored real goal requirements
+No connection to actual goal feasibility
+Didn’t reflect user’s financial reality
+
+Result:
+Feature existed, but had low practical value
+
+
+Root Cause:
+
+Auto-Invest logic was disconnected from Goal Engine:
+
+1. Static monthly amount:
+	monthly_amount = 300 → Not tied to goals
+2. Ignored required contribution
+calculate_monthly_contribution() not used
+3. Optimization output misused
+monthly_boost treated as full plan instead of adjustment
+4. Allocation logic too granular
+Small weight diffs → tiny meaningless orders
+
+
+Solution:
+
+1. Goal-driven monthly amount
+Replaced static input with real requirement:
+	monthly_amount = sum(goal_required_contributions)
+Now Auto-Invest reflects:
+	Goal difficulty
+	Time horizon
+	Current capital
+
+2. Integration with Goal Engine
+Auto-Invest now uses:
+	calculate_monthly_contribution() → baseline need
+	optimize_portfolio_for_goals() → risk + boost
+	Combined into final monthly plan
+
+3. Smarter allocation logic
+Improved distribution:
+	Ignore insignificant diffs
+	Normalize allocations
+	Apply minimum threshold (e.g. $5–$10)
+
+	if allocation < MIN_THRESHOLD:
+    	continue
+
+4. Meaningful output
+Before:
+	$3.05 total
+	→ unusable
+After:
+	$250–$800+ total
+	→ actionable plan
+
+
+Results:
+	Tiny allocations → realistic investments
+	Static system → goal-aware engine
+	Useless UX → actionable financial plan
+
+
+Architectural Insight:
+	Auto-Invest is not a feature —
+it is the bridge between simulation and action.
+	Without correct capital sizing,
+even the best optimization is meaningless.
+
+
+Status:
+Stable
+Integrated with:
+	Goal Engine
+	Smart Rebalance
+	What-If System
+	Nudges System
