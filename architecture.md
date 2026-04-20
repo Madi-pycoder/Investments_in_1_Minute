@@ -133,3 +133,15 @@ asyncio.gather()
 
 
 
+
+5. Current Weak Points
+5.1 Coupling:
+compute_portfolio_metrics does too much
+Hard to test components independently
+
+5.2 Implicit Contracts:
+Dict-based communication (metrics[...])
+No strict schema
+
+6.3 Limited Extensibility:
+Adding new strategies requires editing core logic
