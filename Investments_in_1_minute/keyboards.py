@@ -25,8 +25,8 @@ after_portfolio_action = InlineKeyboardMarkup(
     inline_keyboard=[
 
         [
-            InlineKeyboardButton(text="🧠 Diagnosis", callback_data="explain_portfolio"),
-            InlineKeyboardButton(text="🔮 What-If", callback_data="what_if"),
+            InlineKeyboardButton(text="📊 Diagnosis", callback_data="explain_portfolio"),
+            InlineKeyboardButton(text="🧮 What-If", callback_data="what_if"),
         ],
 
 
@@ -44,6 +44,8 @@ after_portfolio_action = InlineKeyboardMarkup(
 
         [
             InlineKeyboardButton(text="📈 Goals", callback_data="goal_settings"),
+            InlineKeyboardButton(text="⚡ Run Now", callback_data="run_auto_now"),
+            InlineKeyboardButton(text="🧠 Financial Brain", callback_data="financial_brain"),
         ]
     ]
 )
