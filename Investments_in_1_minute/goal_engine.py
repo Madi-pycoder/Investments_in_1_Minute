@@ -17,6 +17,9 @@ def simulate_goal_probability(
     if not positions_data or current_value <= 0:
         return None
 
+    if portfolio_volatility is None:
+        return None
+
     days = years * TRADING_DAYS
 
     mu = expected_return / TRADING_DAYS
@@ -30,15 +33,31 @@ def simulate_goal_probability(
 
     growth = np.cumprod(1 + random_returns, axis=1)
 
-    values = growth * current_value
+    values = np.zeros_like(growth)
+    values[:, 0] = current_value
 
+    for t in range(1, days):
+        values[:, t] = values[:, t - 1] * (1 + random_returns[:, t])
+
+    monthly_step = 21
     current_contribution = monthly_contribution
 
-    for m in range(0, days, 21):
-        values[:, m] += current_contribution
-        current_contribution *= (1 + contribution_growth / 12)
+    for t in range(1, days):
+        values[:, t] = values[:, t - 1] * (1 + random_returns[:, t])
+
+        if t % monthly_step == 0:
+            values[:, t] += current_contribution
+            current_contribution *= (1 + contribution_growth / 12)
 
     final_values = values[:, -1]
+
+    prob = np.mean(final_values >= goal_amount) * 100
+
+    if prob == 0:
+        median = np.median(final_values)
+
+        if median > goal_amount * 0.7:
+            prob = 5.0
 
     return {
         "probability": round(float(np.mean(final_values >= goal_amount) * 100), 1),
@@ -79,6 +98,9 @@ def analyze_goal(goal_result, monthly_needed, portfolio_volatility):
     if prob < 50:
         tips.append("Increase monthly investment")
         tips.append("Extend time horizon")
+
+    if prob == 0:
+        tips.append("Goal likely unrealistic with current capital")
 
     if portfolio_volatility and portfolio_volatility > 0.2:
         tips.append("Reduce risk (portfolio too volatile)")
@@ -133,6 +155,15 @@ def simulate_multiple_goals(
             monthly,
             portfolio_volatility
         )
+
+        if sim is None:
+            results.append({
+                "goal": goal,
+                "simulation": None,
+                "analysis": None,
+                "error": "NO_DATA"
+            })
+            continue
 
         results.append({
             "goal": goal,
@@ -229,9 +260,7 @@ def build_goal_based_weights(positions_data, goals, target_risk):
     for p in positions_data:
         ticker = p["ticker"]
 
-
         w = base_weight
-
 
         if avg_years <= 3:
             w *= 0.7
@@ -262,7 +291,7 @@ def generate_auto_invest_plan(
     if not positions_data or not target_weights:
         return None
 
-    plan = []
+    positive_diffs = []
 
     for p in positions_data:
         ticker = p["ticker"]
@@ -271,12 +300,20 @@ def generate_auto_invest_plan(
 
         diff = target_weight - current_weight
 
-        if diff <= 0:
-            continue
+        if diff > 0:
+            positive_diffs.append((ticker, diff))
 
-        allocation = monthly_amount * diff
+    if not positive_diffs:
+        return None
 
-        if allocation > 0:
+    total_diff = sum(d for _, d in positive_diffs)
+
+    plan = []
+
+    for ticker, diff in positive_diffs:
+        allocation = monthly_amount * (diff / total_diff)
+
+        if allocation > 1:
             plan.append({
                 "ticker": ticker,
                 "amount": round(allocation, 2)
@@ -314,7 +351,7 @@ def run_what_if_scenarios(
         positions_data=positions_data,
         current_value=current_value,
         goal_amount=goal["amount"],
-        years=goal["years"],
+        years=goal["years"] + v.get("years", 0),
         portfolio_volatility=v.get("risk", base_volatility),
         monthly_contribution=monthly
         )
@@ -322,7 +359,10 @@ def run_what_if_scenarios(
         if v["name"] == "Base":
             base_prob = sim["probability"]
 
-        delta = sim["probability"] - base_prob if base_prob else 0
+        if base_prob is None:
+            delta = 0
+        else:
+            delta = sim["probability"] - base_prob
 
         scenarios.append({
             "scenario": v["name"],
