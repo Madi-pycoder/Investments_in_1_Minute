@@ -10,10 +10,14 @@ from shariah_optimizer import optimize_shariah_portfolio
 from ai_explain import explain_portfolio_logic
 from goal_engine import (simulate_multiple_goals,
                          optimize_portfolio_for_goals,
-                         build_goal_based_weights)
+                         build_goal_based_weights,)
 from Portfolio_info.portfolio_data import load_portfolio_data
 from Portfolio_info.portfolio_compute import compute_portfolio_metrics
 from Portfolio_info.portfolio_view import build_portfolio_text
+from user_profile import get_user_profile, create_user_profile, update_user_profile, get_effective_monthly_budget
+from robo_engine import RoboAdvisor
+from auto_invest_engine import run_auto_invest_for_user
+from financial_brain import FinancialBrain
 from graphs.charts import generate_portfolio_growth_graph, generate_sector_allocation_chart
 import requets as rq
 import keyboards as kb
@@ -61,7 +65,7 @@ async def show_portfolio(callback: CallbackQuery, state: FSMContext):
 
     growth_graph = await asyncio.to_thread(generate_portfolio_growth_graph, positions_data)
 
-    sector_chart = await asyncio.to_thread(generate_sector_allocation_chart, metrics["sector_weights"])
+    sector_chart = await asyncio.to_thread(generate_sector_allocation_chart, metrics["sector_exposure"])
 
     if growth_graph:
         from aiogram.types import FSInputFile
@@ -178,7 +182,7 @@ async def explain_portfolio(callback: CallbackQuery, state: FSMContext):
                 f"{sim['probability']}% | ${analysis['monthly_needed']}/mo\n\n"
             )
 
-    text += "\n🤖 AI Insight\n\n" + explanation
+    text += explanation
 
     await callback.message.answer(text)
 
@@ -202,7 +206,8 @@ async def compare_portfolios(current_positions, target_weights):
 
         rebalanced_positions.append({
             "ticker": ticker,
-            "value": total_value * target_weight
+            "value": total_value * target_weight,
+            "weight": target_weight
         })
 
     rebalanced_risk = await calculate_portfolio_risk(rebalanced_positions)
@@ -285,6 +290,9 @@ async def rebalance_now(callback: CallbackQuery, state: FSMContext):
             "ticker": p.ticker,
             "value": value
         })
+
+    for p in positions_data:
+        p["weight"] = p["value"] / total_value if total_value else 0
 
 
     goals = await get_goals(portfolio_id)
@@ -385,6 +393,9 @@ async def rebalance_shariah(callback: CallbackQuery, state: FSMContext):
             "ticker": p.ticker,
             "value": value
         })
+
+    for p in positions_data:
+        p["weight"] = p["value"] / total_value if total_value else 0
 
     target_weights = optimize_shariah_portfolio(
         positions_data,
@@ -498,10 +509,51 @@ async def auto_invest_flow(callback: CallbackQuery, state: FSMContext):
     data = await load_portfolio_data(portfolio_id)
     metrics = await compute_portfolio_metrics(data, portfolio_id)
 
-    plan = metrics.get("auto_invest")
+    user_id = callback.from_user.id
+
+    profile = get_user_profile(user_id)
+    if not profile:
+        profile = create_user_profile(user_id)
+
+    robo = RoboAdvisor(profile, metrics)
+
+    plan = robo.build_auto_invest_plan()
 
     if not plan:
-        await callback.message.answer("❌ Cannot build plan.")
+
+        issues = robo.get_issues()
+
+        text = "❌ Cannot build plan\n\n"
+
+        for i in issues:
+            text += f"• {i}\n"
+
+        await callback.message.answer(text)
+
+        return
+
+    total_value = metrics["total_value"]
+
+    monthly_budget = get_effective_monthly_budget(
+        profile,
+        total_value
+    )
+
+    if monthly_budget <= 0:
+        await callback.message.answer(
+            "❌ Set your monthly budget first.\n\n"
+            "Example: $100–300/month"
+        )
+        return
+
+    if not plan:
+        await callback.message.answer(
+            "❌ Cannot build plan.\n\n"
+            "Possible reasons:\n"
+            "• No goals set\n"
+            "• Portfolio already optimal\n"
+            "• Not enough data"
+        )
         return
 
     text = "🤖 Auto-Invest Mode\n\n"
@@ -512,6 +564,7 @@ async def auto_invest_flow(callback: CallbackQuery, state: FSMContext):
 
     for x in plan:
         text += f"+ ${x['amount']} → {x['ticker']}\n"
+
 
     text += "\n🎯 Optimized for your goals"
 
@@ -525,22 +578,57 @@ async def auto_invest_flow(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data == "enable_auto_invest")
+
 async def enable_auto_invest(callback: CallbackQuery):
+
+    user_id = callback.from_user.id
+
+    profile = get_user_profile(user_id)
+
+    if not profile:
+
+        profile = create_user_profile(user_id)
+
+    update_user_profile(user_id, auto_invest_enabled=True)
 
     await callback.answer()
 
     await callback.message.answer(
+
         "✅ Auto-Invest Activated\n\n"
-        "Your portfolio will grow automatically every month 🚀"
+
+        "Your portfolio will grow automatically every month after running Auto-Invest! 🚀"
+
     )
 
+
+@router.callback_query(F.data == "run_auto_now")
+async def run_auto_now(callback: CallbackQuery, state: FSMContext):
+
+    data_state = await state.get_data()
+    portfolio_id = data_state.get("portfolio_id")
+    user_id = callback.from_user.id
+
+    result = await run_auto_invest_for_user(user_id, portfolio_id)
+
+    if result["status"] == "executed":
+
+        text = "🚀 Auto-Invest Executed\n\n"
+
+        for t in result["trades"]:
+            text += f"BUY ${t['amount']} {t['ticker']}\n"
+
+        await callback.message.answer(text)
+
+    else:
+        await callback.message.answer(f"⚠️ {result['status']}")
 
 
 
 @router.callback_query(F.data == "what_if")
 async def what_if_flow(callback: CallbackQuery, state: FSMContext):
 
-    await callback.answer("🔮 Simulating scenarios...")
+    await callback.answer("Simulating scenarios...")
 
     data_state = await state.get_data()
     portfolio_id = data_state.get("portfolio_id")
@@ -548,13 +636,21 @@ async def what_if_flow(callback: CallbackQuery, state: FSMContext):
     data = await load_portfolio_data(portfolio_id)
     metrics = await compute_portfolio_metrics(data, portfolio_id)
 
-    scenarios = metrics.get("what_if")
+    user_id = callback.from_user.id
+
+    profile = get_user_profile(user_id)
+    if not profile:
+        profile = create_user_profile(user_id)
+
+    robo = RoboAdvisor(profile, metrics)
+
+    scenarios = robo.run_what_if()
 
     if not scenarios:
         await callback.message.answer("No goal data.")
         return
 
-    text = "🔮 What If Analysis\n\n"
+    text = "🧮 What If Analysis\n\n"
 
     for s in scenarios:
         delta = s.get("delta", 0)
@@ -585,7 +681,15 @@ async def nudges_flow(callback: CallbackQuery, state: FSMContext):
     data = await load_portfolio_data(portfolio_id)
     metrics = await compute_portfolio_metrics(data, portfolio_id)
 
-    nudges = metrics.get("nudges")
+    user_id = callback.from_user.id
+
+    profile = get_user_profile(user_id)
+    if not profile:
+        profile = create_user_profile(user_id)
+
+    robo = RoboAdvisor(profile, metrics)
+
+    nudges = robo.get_nudges()
 
     if not nudges:
         await callback.message.answer("No suggestions.")
@@ -616,3 +720,29 @@ async def nudges_flow(callback: CallbackQuery, state: FSMContext):
         text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
+
+
+
+@router.callback_query(F.data == "financial_brain")
+async def financial_brain_flow(callback: CallbackQuery, state: FSMContext):
+
+    await callback.answer("🧠 Thinking...")
+
+    data_state = await state.get_data()
+    portfolio_id = data_state.get("portfolio_id")
+
+    data = await load_portfolio_data(portfolio_id)
+    metrics = await compute_portfolio_metrics(data, portfolio_id)
+
+    user_id = callback.from_user.id
+
+    profile = get_user_profile(user_id)
+    if not profile:
+        profile = create_user_profile(user_id)
+
+    robo = RoboAdvisor(profile, metrics)
+    brain = FinancialBrain(robo)
+
+    text = brain.build_summary()
+
+    await callback.message.answer(text)
