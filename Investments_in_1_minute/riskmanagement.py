@@ -11,7 +11,7 @@ def safe_history(ticker, period="1y"):
         return history_cache[key]
 
     try:
-        hist = yf.download(ticker, period=period, progress=False)
+        hist = yf.download(ticker, period=period, progress=False, timeout=10, threads=False)
 
         if hist is None or not hasattr(hist, "empty") or hist.empty:
             return None
@@ -34,7 +34,7 @@ def ensure_series(data):
 # 1. VOLATILITY
 # ---------------------------
 async def calculate_volatility(ticker: str, period="1y"):
-    hist = yf.download(ticker, period=period, progress=False)
+    hist = yf.download(ticker, period=period, progress=False, timeout=10, threads=False)
 
     if hist.empty:
         return None
@@ -56,7 +56,7 @@ async def calculate_volatility(ticker: str, period="1y"):
 # 2. MAX DRAWDOWN
 # ---------------------------
 async def calculate_max_drawdown(ticker: str, period="5y"):
-    hist = yf.download(ticker, period=period, progress=False)
+    hist = yf.download(ticker, period=period, progress=False, timeout=10, threads=False)
 
     if hist.empty:
         return None
@@ -91,13 +91,10 @@ async def calculate_beta(ticker: str, period="1y"):
 
     returns_stock = hist_stock["Close"].pct_change().dropna()
     returns_market = hist_market["Close"].pct_change().dropna()
-
     df = pd.concat([returns_stock, returns_market], axis=1).dropna()
     df.columns = ["stock", "market"]
-
     covariance = df.cov().iloc[0, 1]
     market_var = df["market"].var()
-
     beta = covariance / market_var
     return round(float(beta), 2)
 
@@ -173,7 +170,7 @@ async def calculate_etf_risk(ticker: str):
 # 5. SHARPE RATIO
 # ---------------------------
 async def calculate_sharpe_ratio(ticker: str, period="1y", risk_free_rate=0.02):
-    hist = yf.download(ticker, period=period, progress=False)
+    hist = yf.download(ticker, period=period, progress=False, timeout=10, threads=False)
 
     if hist.empty:
         return None
@@ -221,22 +218,21 @@ async def calculate_portfolio_volatility(positions):
         ticker = pos["ticker"]
         weight = pos["weight"]
 
-        stock = yf.Ticker(ticker)
-        try:
-            hist = safe_history(ticker, "1y")
-            if hist is None:
-                continue
+        hist = safe_history(ticker, "1y")
 
-            if hist is None or hist.empty:
-                continue
-
-        except Exception:
+        if hist is None or hist.empty:
             continue
 
-        if hist.empty:
+        close = hist["Close"]
+
+        close = ensure_series(close)
+
+        returns = close.pct_change().dropna()
+
+        if not isinstance(returns, pd.Series) or len(returns) < 2:
             continue
 
-        prices[ticker] = hist["Close"].pct_change().dropna()
+        prices[ticker] = returns
         weights.append(weight)
 
     if not prices or len(prices) < 2:
