@@ -26,6 +26,27 @@ NASDAQ_PROXY = [
     "CMCSA", "QCOM", "INTU"
 ]
 
+def safe_close(hist):
+    if hist is None or hist.empty:
+        return None
+    return hist["Close"].iloc[-1]
+
+def get_price_fallback(ticker):
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+        r = requests.get(url, timeout=5)
+
+        data = r.json()
+
+        result = data.get("chart", {}).get("result")
+        if not result:
+            return None
+
+        return float(result[0]["meta"].get("regularMarketPrice"))
+
+    except:
+        return None
+
 
 async def get_index_proxy(ticker: str):
 
@@ -59,14 +80,31 @@ async def get_stock_info(ticker: str):
         stock = yf.Ticker(ticker)
         info = stock.info
         hist = stock.history(period="5y")
-        if hist.empty:
-            return {"error": "No market data"}
+
+        price = None
+
+        if hist is not None and not hist.empty:
+            price = hist["Close"].iloc[-1]
+
+        if not price:
+            price = get_price_fallback(ticker)
+
+        if not price:
+            return {"error": "Price unavailable"}
+
+        close = safe_close(hist)
+        if close is None:
+            return None
 
         def pct(period):
             try:
-                return round(
-                    (hist["Close"].iloc[-1] - hist["Close"].iloc[-period])
-                    / hist["Close"].iloc[-period] * 100, 2)
+                if len(hist) <= period:
+                    return None
+
+                current = hist["Close"].iloc[-1]
+                past = hist["Close"].iloc[-period]
+
+                return round((current - past) / past * 100, 2)
             except:
                 return None
 
@@ -105,7 +143,7 @@ async def get_stock_info(ticker: str):
             "sector": info.get("sector"),
             "dividends": info.get("dividendRate"),
             "earnings_date": ed,
-            "price": float(hist["Close"].iloc[-1]),
+            "price": float(price),
             "growth": growth,
             "receivables": receivables,
             "total_debt": total_debt,
@@ -129,10 +167,21 @@ async def get_etf_info(ticker: str):
         if hist.empty:
             return {"error": "No market data"}
 
+        price = None
+
+        if hist is not None and not hist.empty:
+            price = hist["Close"].iloc[-1]
+
+        if not price:
+            price = get_price_fallback(ticker)
+
+        if not price:
+            return {"error": "Price unavailable"}
+
         def pct(period):
             try:
                 return round(
-                    (hist["Close"].iloc[-1] - hist["Close"].iloc[-period])
+                    (price - hist["Close"].iloc[-period])
                     / hist["Close"].iloc[-period] * 100, 2)
             except:
                 return None
@@ -153,7 +202,7 @@ async def get_etf_info(ticker: str):
             "net_assets": info.get("totalAssets"),
             "pe": info.get("trailingPE"),
             "expense": info.get("expenseRatio"),
-            "price": float(hist["Close"].iloc[-1]),
+            "price": float(price),
             "growth": growth
         }
     except Exception as e:
@@ -169,11 +218,16 @@ async def fetch_chunk(chunk, retries=3):
 
     for attempt in range(retries):
         try:
-            t = Ticker(chunk, asynchronous=True)
+            t = Ticker(
+                chunk,
+                asynchronous=True,
+                timeout=5,
+                validate=True
+            )
 
             modules = t.get_modules(
                 ["assetProfile", "financialData", "defaultKeyStatistics"]
-            )
+            ) or {}
 
             result = {}
 
@@ -195,16 +249,29 @@ async def fetch_chunk(chunk, retries=3):
                 }
 
             STOCKS_CACHE.update(result)
+            return result
 
         except Exception as e:
             print(f"Retry {attempt+1} for chunk failed:", e)
             await asyncio.sleep(1.5 * (attempt + 1))
 
+        for ticker in chunk:
+            if ticker not in STOCKS_CACHE:
+                STOCKS_CACHE[ticker] = {
+                    "industry": None,
+                    "sector": None,
+                    "market_cap": None,
+                    "total_assets": None,
+                    "total_debt": None,
+                    "total_cash": None,
+                    "receivables": None,
+                }
+
     print("Chunk полностью упал:", chunk)
     return {}
 
 
-semaphore = asyncio.Semaphore(3)
+semaphore = asyncio.Semaphore(2)
 STOCKS_CACHE = {}
 
 async def fetch_chunk_limited(chunk):
@@ -259,9 +326,8 @@ async def get_stocks_batch(tickers):
         if t in result:
             final[t] = result[t]
         elif t in STOCKS_CACHE:
-            final[t] = STOCKS_CACHE[t]["data"]
+            final[t] = STOCKS_CACHE[t]
         else:
-            # fallback proxy-level
             final[t] = {
                 "industry": None,
                 "sector": None,
