@@ -143,5 +143,38 @@ Hard to test components independently
 Dict-based communication (metrics[...])
 No strict schema
 
-6.3 Limited Extensibility:
+5.3 Limited Extensibility:
 Adding new strategies requires editing core logic
+
+
+
+
+
+
+6. Next Evolution (Important)
+6.1 Introduce Typed Models
+Replace dicts with structured objects:
+
+class GoalResult:
+    probability: float
+    expected: float
+    worst: float
+
+6.2 Split Compute Layer
+Break into services:
+  GoalService
+  RiskService
+  OptimizationService
+
+6.3 Decision Engine (NEW)
+Create central engine:
+
+class DecisionEngine:
+    def generate_actions(metrics):
+        return actions
+
+6.4 UX Layer Upgrade
+Move from text → interactive flows:
+  Buttons per insight
+  Scenario switching
+  Inline updates
