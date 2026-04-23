@@ -87,19 +87,6 @@ def build_portfolio_text(data, metrics):
             )
 
 
-    if metrics.get("auto_invest"):
-        text += "\n🤖 Auto-Invest Plan\n\n"
-
-        total = sum(x["amount"] for x in metrics["auto_invest"])
-
-        text += f"💰 Monthly: ${round(total, 2)}\n\n"
-
-        for x in metrics["auto_invest"][:3]:
-            text += f"Buy ${x['amount']} → {x['ticker']}\n"
-
-        text += "\n⚡ Auto-balancing towards your goals\n"
-
-
     if metrics.get("what_if"):
         text += "\n🔮 What If Analysis\n\n"
         for s in metrics["what_if"]:
