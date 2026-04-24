@@ -178,3 +178,19 @@ Move from text → interactive flows:
   Buttons per insight
   Scenario switching
   Inline updates
+
+
+
+
+
+7. Long-Term Vision
+Phase 1 (Now)
+   Portfolio analysis
+   Goal simulation
+   Basic automation
+Phase 2
+   Fully automated investing
+   Personalized strategies
+Phase 3 (WOW)
+   "Autonomous Portfolio Agent"
+   Self-optimizing capital allocation
