@@ -1351,3 +1351,176 @@ Integrated with:
 	Smart Rebalance
 	What-If System
 	Nudges System
+
+
+
+
+
+
+Entry #43 — User Profile System
+
+Date: 2026-04-19
+
+Problem:
+
+System had no personalization layer:
+
+  All users treated identically
+  No budget awareness
+  Risk tolerance wasn't counting
+  Auto-Invest couldn't adapt
+
+
+Solution:
+
+Introduced User Profile system:
+
+Features:
+
+  Monthly budget / income support
+  Risk tolerance (low / medium / high)
+  Investment style
+  Time horizon & age
+
+Core logic:
+
+	get_effective_monthly_budget()
+	get_risk_multiplier()
+
+
+Results:
+
+  Static system → Personalized investing
+  Auto-Invest → user-aware
+  Risk model → adaptive
+
+
+Insight:
+
+Personalization is not UI —
+it directly affects financial outcomes.
+
+
+
+
+
+
+
+Entry #44 — RoboAdvisor Engine (Decision Layer)
+
+Date: 2026-04-21
+
+Problem:
+
+System logic was fragmented:
+
+  Auto-Invest, What-If, Nudges were placed separately
+  Logic duplication
+  No core decision logic
+
+
+Solution:
+
+Introduced RoboAdvisor class:
+
+Responsibilities:
+
+  Build auto-invest plan
+  Analyze goals
+  Run What-If scenarios
+  Generate nudges
+
+Architecture:
+
+  Acts as orchestration layer
+  Uses Goal Engine + Risk Engine
+  Centralizes decision logic
+
+
+Results:
+
+Scattered logic → unified decision engine
+Feature-based system → advisor-based system
+
+
+Insight:
+
+A Robo-Advisor is not a set of features —
+it is a decision system.
+
+
+
+
+
+
+Entry #45 — Auto-Invest Execution & Financial Brain
+
+Date: 2026-04-22
+
+Problem:
+
+System could generate recommendations, but not act:
+
+* Auto-Invest was only simulation
+* “Enable Auto-Invest” wasn't doing anything
+* User didn't know what to do afterwards
+
+
+Solution:
+
+1. Auto-Invest Execution Engine
+
+Implemented real execution layer:
+
+  Converts plan → trades
+  Executes via portfolio API
+  Tracks last execution
+
+Added:
+
+  auto_invest_enabled flag
+  Manual trigger (Run Now)
+
+
+2. Financial Brain
+
+Introduced decision layer:
+
+ Aggregates:
+	issues
+    nudges
+    goal analysis
+    auto-invest status
+ Produces:
+    prioritized actions
+    “What to do next”
+
+
+Results:
+
+Simulation → Action
+Features → Guidance
+User confusion → Clear next steps
+
+
+Architectural Insight:
+
+A financial system becomes a product
+only when it can both:
+
+1. Decide
+2. Act
+
+
+Status:
+
+Robo-Advisor Layer complete
+
+Includes:
+
+  Goal Engine
+  Risk Engine
+  Auto-Invest (execution)
+  What-If
+  Nudges
+  Financial Brain
