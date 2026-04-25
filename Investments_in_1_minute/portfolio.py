@@ -59,6 +59,18 @@ async def show_portfolio(callback: CallbackQuery, state: FSMContext):
 
     text = build_portfolio_text(data, metrics)
 
+    regime = metrics.get("market_regime", "unknown")
+
+    regime_map = {
+        "bull": "📈 Bull Market — growth phase",
+        "bear": "📉 Bear Market — decline phase",
+        "crisis": "🚨 Crisis — high volatility",
+        "sideways": "➡️ Sideways — no clear trend",
+        "unknown": "❓ Unknown market"
+    }
+
+    text += f"\n\n🌍 Market Regime:\n{regime_map.get(regime)}"
+
     await callback.message.answer(text, reply_markup=kb.after_portfolio_action)
 
     positions_data = metrics["positions_data"]
@@ -148,6 +160,7 @@ async def explain_portfolio(callback: CallbackQuery, state: FSMContext):
         mc_task,
         stress_task
     )
+
 
 
     explanation = explain_portfolio_logic(
@@ -546,6 +559,13 @@ async def auto_invest_flow(callback: CallbackQuery, state: FSMContext):
         )
         return
 
+    regime = metrics.get("market_regime", "unknown")
+
+    if regime == "bear":
+        monthly_budget *= 0.7
+    elif regime == "bull":
+        monthly_budget *= 1.1
+
     if not plan:
         await callback.message.answer(
             "❌ Cannot build plan.\n\n"
@@ -559,6 +579,16 @@ async def auto_invest_flow(callback: CallbackQuery, state: FSMContext):
     text = "🤖 Auto-Invest Mode\n\n"
 
     total = sum(x["amount"] for x in plan)
+
+    regime_map = {
+        "bull": "📈 Bull Market — growth phase",
+        "bear": "📉 Bear Market — decline phase",
+        "crisis": "🚨 Crisis — high volatility",
+        "sideways": "➡️ Sideways — no clear trend",
+        "unknown": "❓ Unknown market"
+    }
+
+    text += f"\n\n🌍 Market Regime: {regime_map.get(regime)}"
 
     text += f"💰 Monthly: ${round(total, 2)}\n\n"
 
@@ -610,6 +640,7 @@ async def run_auto_now(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
 
     result = await run_auto_invest_for_user(user_id, portfolio_id)
+
 
     if result["status"] == "executed":
 
