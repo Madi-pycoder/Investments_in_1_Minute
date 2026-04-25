@@ -10,7 +10,7 @@ from goal_engine import (
     run_what_if_scenarios,
     generate_smart_nudges
 )
-
+from market_regime import apply_market_regime_shift
 
 class RoboAdvisor:
 
@@ -22,6 +22,7 @@ class RoboAdvisor:
         self.total_value = metrics.get("total_value", 0)
         self.goals = metrics.get("goals", [])
         self.risk = metrics.get("risk", {})
+        self.regime = metrics.get("market_regime", "unknown")
 
     def get_issues(self):
         issues = []
@@ -79,12 +80,21 @@ class RoboAdvisor:
             self.goals,
             target_risk
         )
-
+        target_weights = apply_market_regime_shift(
+            target_weights,
+            self.regime
+        )
         plan = generate_auto_invest_plan(
             self.positions,
             monthly_budget,
             target_weights
         )
+
+        if self.regime == "crisis":
+            target_risk *= 0.7
+
+        elif self.regime == "bull":
+            target_risk *= 1.1
 
         return plan
 
