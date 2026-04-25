@@ -17,7 +17,6 @@ async def load_portfolio_data(portfolio_id):
 
     tickers = [p.ticker for p in positions]
 
-
     stocks_batch_task = asyncio.create_task(get_stocks_batch(tickers))
     prices_task = asyncio.gather(*[get_stock_info(t) for t in tickers])
     goals_task = asyncio.create_task(get_goals(portfolio_id))
