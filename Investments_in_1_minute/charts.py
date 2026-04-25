@@ -20,7 +20,8 @@ def generate_portfolio_growth_graph(positions):
             tickers=tickers,
             period="1y",
             group_by="ticker",
-            threads=True
+            threads=True,
+            timeout=10,
         )
     except Exception:
         return None
