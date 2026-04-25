@@ -12,7 +12,21 @@ from goal_engine import (
     run_what_if_scenarios,
     generate_smart_nudges,
 )
+from market_regime import detect_market_regime
+import yfinance as yf
 
+async def get_market_prices():
+    try:
+        spy = yf.Ticker("SPY")
+        hist = spy.history(period="1y")
+
+        if hist is None or hist.empty:
+            return None
+
+        return hist["Close"].values
+
+    except:
+        return None
 
 
 def build_positions_data(positions, prices):
@@ -149,7 +163,6 @@ def compute_goal_insights(positions_data, total_value, goals, risk):
             goals[0],
             vol
         )
-
     return goal_results, auto_invest, nudges, what_if
 
 
@@ -174,13 +187,9 @@ async def compute_portfolio_metrics(data, portfolio_id):
 
 
     positions_data, total_value = build_positions_data(positions, prices)
-
     top_gainers, top_losers = get_top_movers(positions_data)
-
     risk, sharpe, halal = await compute_async_insights(positions_data, stocks)
-
     shariah_rebalance = compute_rebalance(positions_data, stocks, total_value)
-
     sector_exposure, top_sector, top_weight = compute_sector_exposure(
         positions, prices, stocks, total_value
     )
@@ -193,9 +202,9 @@ async def compute_portfolio_metrics(data, portfolio_id):
     )
 
     alerts = generate_risk_alerts(risk)
-
     goals = data.get("goals") or []
-
+    market_prices = await get_market_prices()
+    regime = detect_market_regime(market_prices)
 
     explanation = explain_portfolio_logic(
         positions_data,
@@ -223,4 +232,5 @@ async def compute_portfolio_metrics(data, portfolio_id):
         "top_losers": top_losers,
         "alerts": alerts,
         "explanation": explanation,
+        "market_regime": regime
     }
