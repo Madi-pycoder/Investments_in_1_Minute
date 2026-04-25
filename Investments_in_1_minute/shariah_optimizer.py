@@ -12,7 +12,6 @@ def optimize_shariah_portfolio(positions_data, stocks_batch):
 
         debt_ratio = debt / assets if assets else 0
 
-        # простое правило: debt < 33%
         if debt_ratio < 0.33:
             halal_positions.append(pos)
 
