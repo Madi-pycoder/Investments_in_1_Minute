@@ -25,6 +25,3 @@ def calculate_rebalance(positions_data, target_weights, total_value):
         })
 
     return trades
-
-
-
