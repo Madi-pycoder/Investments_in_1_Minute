@@ -9,6 +9,7 @@ class FinancialBrain:
         self.metrics = robo.metrics
 
     def get_next_actions(self):
+
         actions = []
 
         issues = self.robo.get_issues()
@@ -18,6 +19,10 @@ class FinancialBrain:
                 "type": "fix",
                 "text": i
             })
+
+        regime_insight = self.get_regime_insight()
+        if regime_insight:
+            actions.append(regime_insight)
 
 
 
@@ -107,3 +112,26 @@ class FinancialBrain:
             text += f"{emoji} {a['text']}\n"
 
         return text
+
+    def get_regime_insight(self):
+        regime = self.robo.regime
+
+        if regime == "crisis":
+            return {
+                "priority": "high",
+                "text": "Market in crisis → reduce risk & invest gradually"
+            }
+
+        if regime == "bear":
+            return {
+                "priority": "medium",
+                "text": "Bear market → focus on accumulation"
+            }
+
+        if regime == "bull":
+            return {
+                "priority": "low",
+                "text": "Bull market → stay investing"
+            }
+
+        return None
