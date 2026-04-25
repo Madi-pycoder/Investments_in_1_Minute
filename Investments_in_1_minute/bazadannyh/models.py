@@ -4,7 +4,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncAttrs, create_async_engine, async_sessionmaker
 
 engine = create_async_engine(
-    "YOUR_DATABASE",
+    "sqlite+aiosqlite:///db1.sqlite3",
     echo=True
 )
 
@@ -109,6 +109,9 @@ class Goal(Base):
     years: Mapped[int] = mapped_column(Integer)
     priority: Mapped[int] = mapped_column(Integer)
     compliance: Mapped[str] = mapped_column(String)
+
+
+
 
 
 async def async_main():
