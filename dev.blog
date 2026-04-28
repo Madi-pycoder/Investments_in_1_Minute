@@ -1524,3 +1524,135 @@ Includes:
   What-If
   Nudges
   Financial Brain
+
+
+
+
+
+Entry #46 — Market Regime Engine
+
+Date: 2026-04-27
+
+Problem:
+
+System lacked awareness of overall market conditions:
+
+  Portfolio decisions were static
+  Auto-Invest ignored macro trends
+  Risk adjustments were same in bull/bear/crisis
+  Market regime often returned "unknown"
+
+Root Cause:
+
+  Market regime was computed from market_prices,
+  but:
+
+     data was often None
+     or too short (<50 points)
+     or derived from portfolio (biased & noisy)
+
+Result:
+
+  System had no reliable macro signal
+
+
+Solution:
+
+Introduced Market Regime Engine using benchmark proxy:
+
+1. Benchmark-based detection
+
+  Instead of portfolio data → use market proxy:
+
+    S&P 500 via SPY
+
+  Fetch:
+
+    1Y historical prices
+    → stable, liquid, unbiased signal
+
+2. Robust data pipeline
+
+  Added:
+
+    get_market_prices()
+
+  Features:
+
+     Fetch SPY history (1Y)
+     Validate data (not empty, >50 points)
+     Fallback to alternative proxies (e.g. QQQ)
+     Final fallback → disable regime (safe mode)
+
+3. Detection logic
+  Based on:
+     Total return
+     Annualized volatility
+
+  Regimes:
+
+    bull → strong growth + low volatility
+    bear → negative trend
+    crisis → sharp decline + high volatility
+    sideways → weak/flat market
+    unknown  → insufficient data
+
+4. Integration into system
+
+  Market regime injected into:
+
+    Portfolio Metrics → compute_portfolio_metrics()
+
+  Used by:
+
+    RoboAdvisor:
+        adjust target weights
+        modify risk exposure
+        scale auto-invest budget
+
+    Auto-Invest:
+        bull → more aggressive allocation
+        bear → defensive scaling
+		crisis → capital preservation
+
+5. Portfolio shift logic
+  apply_market_regime_shift():
+    Growth assets:
+      ↑ in bull
+      ↓ in bear/crisis
+
+    Defensive assets:
+      ↓ in bull
+      ↑ in bear/crisis
+
+
+Results:
+
+Static system → context-aware system
+
+Portfolio decisions now depend on:
+	goals
+	risk
+	market regime
+
+
+Behavioral Change:
+
+Before:
+  Same portfolio behavior in all markets
+
+After:
+	System adapts dynamically:
+     bull → growth bias
+     bear → defensive tilt
+     crisis → capital protection
+
+
+Architectural Insight:
+	A Robo-Advisor without market context
+	is not an advisor —
+	it is a calculator.
+
+
+Status:
+	Market-aware system complete
