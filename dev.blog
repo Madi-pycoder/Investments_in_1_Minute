@@ -1656,3 +1656,142 @@ Architectural Insight:
 
 Status:
 	Market-aware system complete
+
+
+
+
+
+
+Entry #47 — Market Regime Multi-Factor
+
+Date: 2026-04-28
+
+
+Problem:
+
+Market Regime Engine improved reliability,
+but still had critical limitations:
+  Regime was discrete (bull/bear/...)
+  No measure of signal strength
+  Decisions were binary (on/off)
+  Weak vs strong signals treated equally
+
+
+Examples:
+  Slight uptrend → same as strong bull market
+  Mild drawdown → same as crisis conditions
+
+
+Result:
+  System overreacted to weak signals
+  Underreacted to strong ones
+  No proportional decision-making
+
+
+Solution:
+
+Rebuilt Market Regime as a multi-factor scoring system.
+
+1. Multi-Factor Model
+Introduced independent signals:
+  Trend (MA50 vs MA200)
+    → long-term direction
+  Momentum (3M + 6M)
+    → acceleration / slowdown
+  Volatility Regime
+    → calm vs stress
+  Drawdown
+    → distance from peak
+
+Each factor returns normalized signal:
+
+  bullish → +1
+  neutral → 0
+  bearish → -1
+
+
+2. Weighted Scoring System
+
+Combined into unified score:
+
+  score =
+    trend * 2 +
+    momentum * 1.5 +
+    volatility * 1.5 +
+    drawdown * 2
+
+Design logic:
+  Structural signals (trend, drawdown)
+    → higher weight
+  Tactical signals (momentum, volatility)
+    → medium weight
+
+Result:
+  Continuous signal instead of discrete classification
+
+
+3. Regime Classification (Derived from Score)
+
+  score ≥ 2 → bull
+  score ≤ -2 → crisis
+  score < 0 → bear
+  else → sideways
+
+Regime becomes:
+  a label derived from score,
+  not the core signal itself
+
+
+4. Regime Confidence (New Core Concept)
+
+System now returns:
+  {
+    "regime": str,
+    "score": float
+  }
+
+Score acts as:
+  signal strength
+  confidence level
+  decision intensity
+
+
+Examples:
+  score = 0.5 → weak signal (low confidence)
+  score = 3.5 → strong bull regime
+  score = -4 → deep crisis
+
+
+5. System Implications
+
+Enables proportional decisions:
+  Weak signal:
+    → minimal adjustments
+  Strong signal:
+    → aggressive shifts
+
+
+Foundation for:
+  dynamic risk scaling
+  adaptive auto-invest sizing
+  regime-aware portfolio allocation
+
+
+Results:
+
+Binary logic → Continuous signal system
+Static reactions → Proportional responses
+Noise sensitivity → Multi-factor robustness
+
+
+Architectural Insight:
+
+Market regime is not a state —
+it is a spectrum of conditions.
+
+Confidence (score) is more important than label.
+
+
+Status:
+
+Market Regime upgraded to signal-based system
