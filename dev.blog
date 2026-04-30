@@ -1795,3 +1795,117 @@ Confidence (score) is more important than label.
 Status:
 
 Market Regime upgraded to signal-based system
+
+
+
+
+
+
+Entry #48 — Shariah Compliance Upgrade (Purification + TSM Fix)
+
+Date: 2026-04-30
+
+
+Problem:
+
+Shariah-compliance layer was incomplete and inconsistent:
+	Purification was not visible in portfolio output
+	No clear breakdown of non-compliant income
+	Users could not act on purification insights
+	Some compliant assets (e.g. TSM) were incorrectly flagged or unstable
+
+Result:
+	Compliance system existed, but was not actionable
+	Users could not trust or verify halal status
+	Edge cases (like TSM) reduced system credibility
+
+
+Root Cause:
+
+1. Purification disconnected from UI
+	Calculated in backend (calculate_portfolio_purification)
+    But not reliably surfaced in portfolio_view
+2. Weak validation logic
+    No strict check for:
+        total_purification > 0
+        valid breakdown structure
+3. Data inconsistency (TSM issue)
+    Missing / unstable financial data
+    Incomplete Shariah screening inputs
+    Led to:
+        false negatives
+        classification instability
+4. No decision layer
+    System calculated purification
+    But did not suggest:
+        actions
+        fixes
+        reallocation
+
+
+Solution:
+
+1. Reliable Purification Pipeline
+	Ensured purification is always computed
+    Standardized output
+	Added strict rendering condition
+
+2. UI Integration (Portfolio View)
+	Introduced Purification block
+    Limited breakdown to top contributors (≤3)
+	Positioned after AI insights for visibility
+
+3. TSM Stability Fix
+	Identified issue:
+    	TSM classification unstable due to incomplete data
+	Improvements:
+    	Added fallback handling for missing financial fields
+    	Prevented false classification when data is insufficient
+    	Stabilized screening logic
+	Design principle:
+		“No data → No judgment”
+		instead of
+		“No data → Non-compliant”
+
+4. Toward Actionable Compliance
+	System now provides:
+		Quantified impurity (💸)
+		Source attribution (ticker-level)
+		Visibility in main portfolio screen
+
+	Foundation for next steps:
+		Auto-purification tracking
+		Charity allocation suggestions
+		Shariah-aware rebalancing
+
+
+Results:
+Opaque compliance → Transparent system
+
+Before:
+	Hidden purification
+	No breakdown
+	Inconsistent screening
+
+After:
+	Clear purification amount
+	Ticker-level attribution
+	Stable classification logic
+
+
+Architectural Insight:
+Shariah compliance is not a boolean flag.
+
+It is a financial flow problem:
+	where impurity is generated
+	how it accumulates
+	how it is purified
+
+Without visibility → no trust
+Without trust → no product
+
+
+Status:
+
+Shariah layer upgraded from
+passive screening → active compliance system
