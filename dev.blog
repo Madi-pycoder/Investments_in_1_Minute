@@ -2956,3 +2956,141 @@ Status
 
 Product experience upgraded from
 technical toolkit → consumer-ready investment assistant.
+
+
+
+
+
+Entry #60 — ETF Shariah Engine Optimization via Database-Backed Receivables
+
+Date: 2026-06-19
+
+Problem
+
+ETF Shariah analysis became the slowest
+component of the analyzer pipeline.
+
+Performance profiling showed:
+
+ETF INFO-Market: ~6s
+ETF INFO-Risk: ~0.03s
+ETF INFO-Shariah: ~10s
+
+Shariah screening consumed the majority
+of ETF analysis time.
+
+As ETF coverage expanded,
+response times became increasingly dependent
+on external Yahoo Finance requests.
+
+Root Cause
+
+Receivables data was fetched dynamically
+during ETF screening.
+
+For every ETF holding:
+
+ticker
+→ Yahoo balance sheet request
+→ receivables extraction
+
+This created dozens of additional
+network calls during a single ETF analysis.
+
+The bottleneck was not screening logic itself,
+but repeated financial statement retrieval.
+
+Solution
+
+1. Receivables Migrated to Database Layer
+
+Receivables became part of the
+StockFundamentals storage model.
+
+Financial statement data is now collected
+by the market data worker
+and persisted locally.
+
+2. ETF Screening Decoupled from Yahoo Balance Sheets
+
+Removed direct balance sheet requests
+from ETF screening flow.
+
+ETF analysis now consumes:
+
+local fundamentals
+cached financial metrics
+database-backed receivables
+
+instead of live balance sheet downloads.
+
+3. Batch Database Retrieval
+
+Fundamental data for holdings
+is now loaded through a single query.
+
+This replaced dozens of external requests
+with one local database operation.
+
+4. Expanded Receivables Detection
+
+Added support for multiple balance sheet labels:
+
+Net Receivables
+Accounts Receivable
+Accounts Receivable Trade
+Receivables
+
+Improved data coverage across issuers.
+
+Results
+
+Before:
+
+ETF analysis triggered
+multiple balance sheet downloads.
+
+Shariah module became the dominant
+performance bottleneck.
+
+ETF INFO-Shariah:
+~9–10 seconds
+
+After:
+
+Receivables loaded directly
+from local database.
+
+External balance sheet dependency removed
+from ETF analysis path.
+
+ETF INFO-Shariah:
+~3–4 seconds with cache
+
+Significant reduction in
+network-bound latency.
+
+System scalability improved
+for larger ETF universes.
+
+Architectural Insight
+
+Data required for repeated analysis
+should be collected once
+and reused many times.
+
+Market data acquisition
+and investment analysis
+are separate responsibilities.
+
+Moving fundamentals into the database
+transforms external API latency
+into local infrastructure speed.
+
+Status
+
+ETF Shariah Engine upgraded from
+
+live balance-sheet dependency
+→
+database-backed screening architecture.
