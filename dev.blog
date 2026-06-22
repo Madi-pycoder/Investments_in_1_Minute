@@ -3094,3 +3094,327 @@ ETF Shariah Engine upgraded from
 live balance-sheet dependency
 →
 database-backed screening architecture.
+
+
+
+
+
+
+
+
+Entry #61 — Universal Fundamentals Auto-Refresh Architecture
+
+Date: 2026-06-20
+
+Problem
+
+Shariah screening quality depended on
+whether a ticker already existed
+inside the local database.
+
+Known assets received:
+
+revenue
+debt
+cash
+receivables
+interest income
+
+Unknown assets often had:
+
+missing fundamentals
+incomplete audits
+lower analysis quality
+
+Result:
+
+The first user analyzing a ticker
+received a worse experience
+than later users.
+
+Root Cause
+
+Fundamental data was updated only for
+tickers already stored inside the system.
+
+The architecture assumed that
+database coverage would grow naturally.
+
+In reality, users constantly introduced
+new assets.
+
+Solution
+
+1. Universal Fundamentals Loader
+
+Implemented automatic database enrichment
+for previously unseen tickers.
+
+2. On-Demand Fundamentals Collection
+
+When required financial data is missing:
+
+retrieve balance sheet
+retrieve income statement
+extract Shariah metrics
+persist to PostgreSQL
+
+before analysis execution.
+
+3. Automatic Refresh Logic
+
+Added freshness validation.
+
+Outdated financial data can now be
+refreshed automatically
+without manual intervention.
+
+4. Database-First Analysis
+
+Screening now prioritizes:
+
+local fundamentals
+cached metrics
+persistent storage
+
+instead of external requests.
+
+Results
+
+Before:
+
+Unknown tickers produced
+incomplete Shariah audits.
+
+Database coverage depended on
+historical user activity.
+
+After:
+
+Any supported ticker can become
+fully analyzable automatically.
+
+Audit consistency improved.
+
+Database quality compounds
+with every new user request.
+
+Architectural Insight
+
+A screening engine should not depend on
+which assets were analyzed yesterday.
+
+The system must continuously expand
+its own knowledge base.
+
+Each user interaction should make
+the platform smarter.
+
+Status
+
+Fundamentals architecture upgraded from
+
+static coverage
+→
+self-expanding financial database.
+
+
+
+
+
+
+
+
+Entry #62 — Discovery Layer Upgrade via Stock & ETF Categories
+
+Date: 2026-06-22
+
+Problem
+
+Most users entered the analyzer
+without knowing specific tickers.
+
+Asking for a ticker immediately created
+decision friction.
+
+Result:
+
+Users dropped before reaching
+their first analysis.
+
+Root Cause
+
+The analyzer assumed that users already knew:
+
+which asset to research
+which ticker to enter
+where to start
+
+The product optimized for experienced investors,
+not newcomers.
+
+Solution
+
+1. Stock Discovery Categories
+
+Introduced curated stock groups:
+
+Growth Stocks
+Shariah Stocks
+Defensive Stocks
+Popular Stocks
+
+2. ETF Discovery Categories
+
+Introduced curated ETF groups:
+
+Shariah ETFs
+Technology ETFs
+Global ETFs
+Beginner ETFs
+
+3. One-Tap Analysis
+
+Added direct ticker buttons.
+
+Users can launch analysis
+without manual input.
+
+4. Reduced Decision Load
+
+The system now suggests
+starting points instead of
+requiring prior market knowledge.
+
+Results
+
+Before:
+
+User
+→ must know ticker
+→ enter ticker
+→ analyze
+
+After:
+
+User
+→ select category
+→ tap asset
+→ analyze
+
+Fewer steps.
+Lower friction.
+Higher first-analysis completion rate.
+
+Architectural Insight
+
+Users rarely need more options.
+
+They need better defaults.
+
+Discovery is part of the product,
+not a separate feature.
+
+Status
+
+Analyzer upgraded from
+
+search-first experience
+→
+guided discovery experience.
+
+
+
+
+
+
+
+Entry #63 — Production State Persistence via Redis Storage
+
+Date: 2026-06-22
+
+Problem
+
+FSM state was stored in application memory.
+
+Any restart, redeploy,
+or server crash could erase:
+
+active conversations
+multi-step workflows
+portfolio flows
+analysis sessions
+
+Result:
+
+User journeys were vulnerable
+to infrastructure events.
+
+Root Cause
+
+MemoryStorage couples user state
+to a single running process.
+
+State disappears whenever
+the process disappears.
+
+Solution
+
+1. Redis Storage Migration
+
+Replaced in-memory FSM storage
+with Redis-backed persistence.
+
+2. Externalized Conversation State
+
+User progress now survives:
+
+deployments
+restarts
+worker recreation
+temporary outages
+
+3. Production-Ready Architecture
+
+Application logic and user state
+became independent systems.
+
+4. Horizontal Scaling Foundation
+
+Multiple bot instances can now
+share the same state layer.
+
+Results
+
+Before:
+
+Deploy
+→ FSM reset
+→ conversations lost
+
+After:
+
+Deploy
+→ FSM preserved
+→ workflows continue
+
+Significantly improved reliability
+for multi-step interactions.
+
+Architectural Insight
+
+Application servers are temporary.
+
+User state is not.
+
+Production systems should treat
+conversation state
+as durable infrastructure.
+
+Status
+
+FSM architecture upgraded from
+
+process memory
+→
+persistent distributed storage.
