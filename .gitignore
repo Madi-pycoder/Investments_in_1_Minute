@@ -1,3 +1,29 @@
-.venv
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtualenv
+.venv/
+venv/
+
+# Env
 .env
-venv/__pycache__
+
+# IDE
+.idea/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Docker
+docker_data/
+
+# Pytest
+.pytest_cache/
+
+# Mypy
+.mypy_cache/
