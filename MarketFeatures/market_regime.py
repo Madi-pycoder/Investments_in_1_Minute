@@ -1,5 +1,5 @@
 import numpy as np
-from market_regime_factors import compute_regime_score
+from MarketFeatures.market_regime_factors import compute_regime_score
 
 def normalize_prices(prices):
     if prices is None:
@@ -14,16 +14,18 @@ def normalize_prices(prices):
 def detect_market_regime(prices):
     prices = normalize_prices(prices)
     if prices is None or len(prices) < 200:
-        return {"regime": "unknown", "score": 0}
+        return {
+            "regime": "Недостаточно данных",
+            "score": 0}
     score = compute_regime_score(prices)
     if score >= 2:
-        regime = "bull"
+        regime = "Рост рынка 📈"
     elif score <= -2:
-        regime = "crisis"
+        regime = "Кризис 🚨"
     elif score < 0:
-        regime = "bear"
+        regime = "Снижение рынка 📉"
     else:
-        regime = "sideways"
+        regime = "Боковое движение ➖"
     return{
         "regime": regime,
         "score": score}
@@ -33,10 +35,10 @@ def classify_asset(ticker):
     safe = ["BND", "SUKUK", "TLT"]
     growth = ["QQQ", "TECH", "NVDA"]
     if ticker in safe:
-        return "defensive"
+        return "Защитный актив"
     if ticker in growth:
-        return "growth"
-    return "neutral"
+        return "Актив роста"
+    return "нейтральный"
 
 
 def apply_market_regime_shift(weights, regime):
@@ -45,20 +47,20 @@ def apply_market_regime_shift(weights, regime):
     shifted = {}
     for ticker, w in weights.items():
         asset_type = classify_asset(ticker)
-        if regime == "bull":
-            if asset_type == "growth":
+        if regime == "Рост рынка 📈":
+            if asset_type == "Актив роста":
                 w *= 1.2
-            elif asset_type == "defensive":
+            elif asset_type == "Защитный актив":
                 w *= 0.9
-        elif regime == "bear":
-            if asset_type == "growth":
+        elif regime == "Снижение рынка 📉":
+            if asset_type == "Актив роста":
                 w *= 0.8
-            elif asset_type == "defensive":
+            elif asset_type == "Защитный актив":
                 w *= 1.1
-        elif regime == "crisis":
-            if asset_type == "growth":
+        elif regime == "Кризис 🚨":
+            if asset_type == "Актив роста":
                 w *= 0.6
-            elif asset_type == "defensive":
+            elif asset_type == "Защитный актив":
                 w *= 1.3
         shifted[ticker] = w
     total = sum(shifted.values())
