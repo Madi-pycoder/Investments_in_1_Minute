@@ -1,4 +1,6 @@
 import asyncio
+import random
+import time
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
@@ -7,7 +9,7 @@ from MarketFeatures.market import get_etf_holdings, get_stock_info, get_etf_info
 from aiogram.fsm.state import State, StatesGroup
 from MainMetricsComputingFeatures.shariah import shariah_screen, shariah_screen_etf_full
 from MainMetricsComputingFeatures.riskmanagement import get_risk_metrics_cached, calculate_etf_risk
-from renderer import format_shariah
+from VisualFeatures.renderer import format_shariah, format_money, format_percent, risk_bar, signed_growth
 from VisualFeatures.charts import generate_asset_growth_graph
 from VisualFeatures import keyboards as kb
 
@@ -22,22 +24,183 @@ async def cmd_stocks(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Mode.waiting_for_ticker)
     await state.update_data(type="stocks")
     await callback.message.answer(
-        "📈 Stock Analyzer\n\n"
-        "Enter a stock ticker (AAPL, NVDA, MSFT...)\n\n"
-        "You'll get:\n\n"
-        "• Risk score\n"
-        "• Growth history\n"
-        "• Business fundamentals\n"
-        "• Shariah screening\n"
-        "• Personal assessment",
+        "📈 Анализ акций\n\n"
+        "Покажем:\n"
+        "• уровень риска\n"
+        "• рост компании\n"
+        "• финансовое состояние\n"
+        "• проверку на соответствие Шариату\n"
+        "• понятный итоговый вывод\n\n"
+        "Введите тикер компании\n\n"
+        "ИЛИ выберите готовую подборку 👇",
+        reply_markup=kb.stock_categories)
+    asyncio.create_task(
+        AnalyticsService.track_event(
+            user_id=callback.from_user.id,
+            event_name="stock.opened",
+            category="funnel"))
+
+@router.callback_query(F.data == "stock_growth")
+async def stock_growth(callback: CallbackQuery):
+    await callback.message.answer(
+        "🚀 Акции роста\n\n"
+        "NVDA — AI лидер\n"
+        "AMD — AI и чипы\n"
+        "TSLA — электромобили\n"
+        "META — AI + соцсети\n\n"
+        "Нажмите на тикер:",
+        reply_markup=kb.growth_stocks)
+
+@router.callback_query(F.data == "stock_shariah")
+async def stock_shariah(callback: CallbackQuery):
+    await callback.message.answer(
+        "🕌 Акции, соответствующие Шариату\n\n"
+        "AAPL — Iphone и устройства\n"
+        "GOOGL — AI + поисковик\n"
+        "TSM — лидер в сфере чипов\n"
+        "NVDA — AI лидер\n\n"
+        "Нажмите на тикер:",
+        reply_markup=kb.shariah_stocks)
+
+@router.callback_query(F.data == "stock_safe")
+async def stock_safe(callback: CallbackQuery):
+    await callback.message.answer(
+        "🛡 Более устойчивые компании\n\n"
+        "BRK.B — инвестиционный лидер\n"
+        "MSFT — ПО и облачные сервисы\n"
+        "JNJ — медицина и лекарства\n"
+        "KO — напитки Coca-Cola\n\n"
+        "Нажмите на тикер:",
+        reply_markup=kb.safe_stocks)
+
+@router.callback_query(F.data == "stock_popular")
+async def stock_popular(callback: CallbackQuery):
+    await callback.message.answer(
+        "📈 Самые популярные акции\n\n"
+        "AAPL — Iphone и устройства\n"
+        "NVDA — AI лидер\n"
+        "TSLA — электромобили\n"
+        "MSFT — ПО и облачные сервисы\n\n"
+        "Нажмите на тикер:",
         reply_markup=kb.popular_stocks)
+
+
+
+
+@router.callback_query(F.data == "etfs")
+async def cmd_etfs(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Mode.waiting_for_ticker)
+    await state.update_data(type="etfs")
+    await callback.message.answer(
+        "🧩 Анализ ETF\n\n"
+        "Покажем:\n"
+        "• состав фонда\n"
+        "• уровень риска\n"
+        "• историю доходности\n"
+        "• долю соответствующих Шариату активов\n"
+        "• итоговый вывод\n\n"
+        "Введите тикер фонда\n\n"
+        "ИЛИ выберите готовую подборку 👇",
+        reply_markup=kb.etf_categories)
+    asyncio.create_task(
+        AnalyticsService.track_event(
+            user_id=callback.from_user.id,
+            event_name="etfs.opened",
+            category="funnel"))
+
+
+@router.callback_query(F.data == "etf_shariah")
+async def etf_shariah(callback: CallbackQuery):
+    await callback.message.answer(
+        "🕌 ETF, соответствующие Шариату\n\n"
+        "SPUS\n"
+        "HLAL\n"
+        "UMMA\n\n"
+        "Нажмите на фонд:",
+        reply_markup=kb.shariah_etfs)
+
+
+@router.callback_query(F.data == "etf_tech")
+async def etf_tech(callback: CallbackQuery):
+    await callback.message.answer(
+        "💻 Технологические ETF\n\n"
+        "QQQ\n"
+        "VGT\n"
+        "HLAL\n\n"
+        "Нажмите на фонд:",
+        reply_markup=kb.tech_etfs)
+
+
+@router.callback_query(F.data == "etf_world")
+async def etf_world(callback: CallbackQuery):
+    await callback.message.answer(
+        "🌍 Глобальные ETF\n\n"
+        "VT\n"
+        "ACWI\n"
+        "UMMA\n\n"
+        "Нажмите на фонд:",
+        reply_markup=kb.world_etfs)
+
+
+@router.callback_query(F.data == "etf_beginner")
+async def etf_beginner(callback: CallbackQuery):
+    await callback.message.answer(
+        "🛡 ETF для начинающих\n\n"
+        "VOO\n"
+        "GLD\n"
+        "UMMA\n\n"
+        "Нажмите на фонд:",
+        reply_markup=kb.for_beginners_etfs)
+
+
+
+@router.callback_query(F.data == "analyze_again_stocks")
+async def analyze_again_stocks(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    mode_type = data.get("type")
+    await state.set_state(Mode.waiting_for_ticker)
+    if mode_type == "stocks":
+        await callback.message.answer(
+        "📈 Введите тикер компании\n\n"
+        "Например:\n"
+        "AAPL - Apple,\n"
+        "NVDA - NVIDIA,\n"
+        "MSFT - Microsoft", reply_markup=kb.stock_categories)
+
+
+@router.callback_query(F.data == "analyze_again_etfs")
+async def analyze_again_etfs(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    mode_type = data.get("type")
+    await state.set_state(Mode.waiting_for_ticker)
+    if mode_type == "etfs":
+        await callback.message.answer(
+        "🧩 Введите тикер фонда\n\n"
+        "Например:\n"
+        "• SPUS — исламский аналог S&P 500\n"
+        "• HLAL — исламские акции США\n"
+        "• SPY — индекс S&P 500\n"
+        "• QQQ — крупнейшие технологии США", reply_markup=kb.popular_etfs)
 
 
 async def analyze_ticker(message: Message, state: FSMContext):
     mode = await state.get_data()
     mode_type = mode.get("type")
     ticker = message.text.strip().upper()
+    asyncio.create_task(
+        AnalyticsService.track_event(
+            user_id=message.from_user.id,
+            event_name="ticker.entered",
+            event_data={
+                "ticker": ticker,
+                "asset_type": mode_type}))
     if mode_type == "stocks":
+        await message.answer("🔍 Анализируем компанию...\n\n"
+            "Проверяем:\n"
+            "• финансы\n"
+            "• уровень риска\n"
+            "• соответствие Шариату\n\n"
+            "Это займёт несколько секунд.\n")
         data = await get_stock_info(ticker)
         if "error" in data:
             await message.answer(data["error"])
@@ -46,42 +209,73 @@ async def analyze_ticker(message: Message, state: FSMContext):
         risk = await get_risk_metrics_cached(ticker)
         risk_score = risk["risk_score"]
         risk_label = risk["risk_label"]
-        why = []
-        if screening["status"] != "HALAL ✅":
-            why.append("May not meet Islamic investing standards")
-        if risk_score < 40:
-            why.append("Low risk profile")
-        if data["growth"]["1Y"] > 10:
-            why.append("Positive long-term trend")
-        if not why:
-            why.append("Requires further review")
-        why_text = "\n".join([f"• {x}" for x in why])
+        pe = data["pe"]
+        mc = data["market_cap"]
+        insights = []
+        if data["growth"]["1Y"] > 30:
+            insights.append(("📈", f"Сильный рост за последний год: {data["growth"]["1Y"]}"))
+        if data["growth"]["5Y"] > 100:
+            insights.append(("🚀", f"Компания более чем удвоилась за 5 лет: {data["growth"]["5Y"]}"))
+        if data["growth"]["1Y"] < -20:
+            insights.append(("📉", f"Акция переживает сильную просадку{data["growth"]["1Y"]}"))
+
+        if risk_score >= 80:
+            insights.append(("🛡", "Один из самых низких уровней риска"))
+        if risk_score <= 50:
+            insights.append(("⚠️", "Высокий риск"))
+        if risk["drawdown"] < -50:
+            insights.append(("📉", "Исторически переживал просадки более 50%"))
+
+        if screening["status"] == "СООТВЕТСТВУЕТ ШАРИАТУ ✅":
+            insights.append(("🕌", "Проходит проверку по стандартам Шариата"))
+        if screening["status"] == "Скорее соответствует Шариату ⚠️":
+            insights.append(("⚠️", "Есть показатели, требующие проверки"))
+
+        if pe and pe < 15:
+            insights.append(("💰", "Оценка ниже средней по рынку"))
+        if pe and pe > 40:
+            insights.append(("🔥", "Инвесторы закладывают высокий рост"))
+
+        if mc > 1_000_000_000_000:
+            insights.append(("🏢", "Компания входит в число крупнейших в мире"))
+        if mc < 10_000_000_000:
+            insights.append(("🌱", "Относительно небольшая компания"))
+
+        if data["debt_to_equity"] < 50:
+            insights.append(("🏦", "Низкая долговая нагрузка"))
+        if data["debt_to_equity"] > 150:
+            insights.append(("⚠️", "Высокая зависимость от долга"))
+
+        if not insights:
+            insights.append("Нужен дополнительный анализ")
+        random.shuffle(insights)
+        selected = insights[:4]
+        insight_text = "\n".join(f"{icon} {text}" for icon, text in selected)
         text = f"""
-            📊 {data['name']} ({data['ticker']})
+        📊 {data['name']} ({data['ticker']})
 
-        💵 Price: {data['price']}$
+    💵 Цена:
+    {round(data['price'], 2)}$
             
 
-        🕌 Shariah Screening:
+    🕌 Соответствие Шариату:
+    {format_shariah(screening["status"])}
+
+
+    📊 Риск:  
+    {risk_bar(risk_score)}
+    {risk_label} ({risk_score}/100)
+            
+            
+    💡 Ключевые факторы
         
-        {format_shariah(screening["status"])}
-
-
-        📊 Risk Metrics:  {risk_label}({risk_score}/100)
-            
-            
-        🤖 AI Verdict: {why}
-            
-            
-        💡 Key Takeaways
-         
-            {why_text}
+    {insight_text}
         
-        📈 Growth
-        • 1Y: {data['growth']['1Y']}%
-        • 5Y: {data['growth']['5Y']}%
+    📈 Рост
+    {signed_growth(data['growth']['1Y'])} За 1 год: {data['growth']['1Y']}%
+    {signed_growth(data['growth']['5Y'])} За 5 лет: {data['growth']['5Y']}%
             
-        👇 Next Step:
+    👇 Что дальше?
             """
         await message.answer(text, reply_markup=kb.after_analysis)
         await state.update_data(
@@ -90,9 +284,13 @@ async def analyze_ticker(message: Message, state: FSMContext):
         asyncio.create_task(
             AnalyticsService.track_event(
                 user_id=message.from_user.id,
-                event_name="stock_analyzed",
+                event_name="analysis.completed",
                 category="invest",
-                event_data={"ticker": ticker}))
+                event_data={
+                    "ticker": ticker,
+                    "asset_type": "stock",
+                    "risk_score": risk_score,
+                    "shariah": screening["status"]}))
         await state.update_data(
             last_ticker=ticker,
             last_price=data["price"],
@@ -103,50 +301,58 @@ async def analyze_ticker(message: Message, state: FSMContext):
         return
 
     if mode_type == "etfs":
+        await message.answer("🔍 Анализируем фонд...\n\n"
+            "Проверяем состав фонда,\n"
+            "уровень риска и соответствие Шариату.")
+        start = time.perf_counter()
         data = await get_etf_info(ticker)
+        print("ETF INFO-Market:", time.perf_counter() - start)
         if "error" in data:
             await message.answer(data["error"])
             return
-        screening = await shariah_screen_etf_full(ticker, get_etf_holdings)
-        risk_etf = await calculate_etf_risk(ticker)
+        screening, risk_etf = await asyncio.gather(
+            shariah_screen_etf_full(ticker, get_etf_holdings),
+            calculate_etf_risk(ticker))
         risk = await get_risk_metrics_cached(ticker)
-        risk_score = risk["risk_score"]
-        why = []
-        if screening["status"] != "HALAL ✅":
-            why.append("May not meet Islamic investing standards")
-        if risk_score < 40:
-            why.append("Low risk profile")
-        if data["growth"]["1Y"] > 10:
-            why.append("Positive long-term trend")
-        if not why:
-            why.append("Requires further review")
-        why_text = "\n".join([f"• {x}" for x in why])
-
+        insights = []
+        if screening["halal_percent"] > 90:
+            insights.append(("🕌", "Большая часть фонда соответствует Шариату"))
+        if screening["covered_percent"] < 60:
+            insights.append(("📊", "Покрытие проверки ограничено"))
+        if risk["risk_score"] > 80:
+            insights.append(("🛡", "ETF относится к более стабильным"))
+        if not insights:
+            insights.append("Нужен дополнительный анализ")
+        why_text = "\n".join([f"• {x}" for x in insights])
 
         text = f"""
-            🧩 {data['name']} ({data['ticker']})
+    🧩 {data['ticker']}
 
-        💵 Price: {data['price']}$
-
-
-        🕌 ETF Shariah:
-        
-        {format_shariah(screening["status"])}
+    💵 Цена: 
+    {round(data['price'], 2)}$
 
 
-        📊 Risk Metrics {risk_etf['risk_label']}({risk_etf['risk_score']}/100)
+    🕌 Соответствие Шариату:
+    {format_shariah(screening["status"])}
+
+
+    📊 Риск: 
+    {risk_bar(risk_etf['risk_score'])}
+    {risk_etf['risk_label']} ({risk_etf['risk_score']}/100)
             
 
-        💡 Key Takeaways: {why_text}
+    💡 Ключевые факторы: 
+
+    {why_text}
 
 
-        📈 Growth
+    📈 Рост
 
-        • 1Y: {data['growth']['1Y']}%
-        • 5Y: {data['growth']['5Y']}%
+    {signed_growth(data['growth']['1Y'])} За 1 год: {data['growth']['1Y']}%
+    {signed_growth(data['growth']['5Y'])} За 5 лет: {data['growth']['5Y']}%
             
-        👇 Next Step:
-            """
+        👇 Что дальше?
+        """
         await message.answer(text, reply_markup=kb.after_analysis)
         await state.update_data(
             last_ticker=ticker,
@@ -159,30 +365,16 @@ async def analyze_ticker(message: Message, state: FSMContext):
         asyncio.create_task(
             AnalyticsService.track_event(
                 user_id=message.from_user.id,
-                event_name="etf_analyzed",
+                event_name="analysis.completed",
                 category="invest",
-                event_data={"ticker": ticker}))
+                event_data={"ticker": ticker,
+                    "asset_type": "etf"}))
         return
 
 
 @router.message(Mode.waiting_for_ticker)
 async def ticker_handler(message, state):
     await analyze_ticker(message, state)
-
-@router.callback_query(F.data == "etfs")
-async def cmd_etfs(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(Mode.waiting_for_ticker)
-    await state.update_data(type="etfs")
-    await callback.message.answer(
-        "🧩 ETF Analyzer\n\n"
-        "Enter an ETF ticker (VOO, SPY, QQQ...)\n\n"
-        "You'll get:\n\n"
-        "• Holdings breakdown\n"
-        "• Risk profile\n"
-        "• Historical performance\n"
-        "• Shariah exposure\n"
-        "• AI assessment",
-        reply_markup=kb.popular_etfs)
 
 
 @router.callback_query(F.data.startswith("quick_"))
@@ -198,15 +390,23 @@ async def quick_ticker(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data == "deep_audit")
-async def deep_analysis_handler(
-    callback: CallbackQuery, state: FSMContext):
+async def deep_analysis_handler(callback: CallbackQuery,
+        state: FSMContext):
     data = await state.get_data()
     mode_type = data.get("type")
     print("DEEP AUDIT STATE: ", data)
     ticker = data.get("last_ticker")
     if not ticker:
-        await callback.message.answer("⚠️ Analyze an asset first.")
+        await callback.message.answer("⚠️ Сперва сделайте анализ.")
         return
+    asyncio.create_task(
+        AnalyticsService.track_event(
+            user_id=callback.from_user.id,
+            event_name="deep_audit.opened",
+            category="funnel",
+            event_data={
+                "ticker": ticker,
+                "asset_type": mode_type}))
     if mode_type == "stocks":
         stocks_data = await get_stock_info(ticker)
         if "error" in stocks_data:
@@ -214,7 +414,7 @@ async def deep_analysis_handler(
             return
         state_data = await state.get_data()
         stock_data = state_data.get("last_stock_data")
-        screening = state_data.get("last_screening")
+        screening = await shariah_screen(stocks_data)
         if not stock_data:
             await callback.message.answer("Analyze an asset first.")
             return
@@ -229,20 +429,20 @@ async def deep_analysis_handler(
         audit_text = ""
         for check in audit["checks"]:
             icon = {
-                "pass": "✅",
-                "borderline": "⚠️",
-                "fail": "❌",
-                "neutral": "➖"}[check["status"]]
+                "соответствует": "✅",
+                "на грани": "⚠️",
+                "не соответствует": "❌",
+                "нейтральный": "➖"}[check["status"]]
             value = (
                 f"{check['value']:.2%}"
                 if check["value"] is not None
                 else "N/A")
             audit_text += (
                 f"{icon} {check['name']}\n"
-                f"• Value: {value}\n"
-                f"• Limit: {check['limit']:.0%}\n"
-                f"• Formula: {check['formula']}\n"
-                f"• Result: {check['message']}\n\n")
+                f"• Оценка: {value}\n"
+                f"• Лимит: {check['limit']:.0%}\n"
+                f"• Формула: {check['formula']}\n"
+                f"• Результат: {check['message']}\n\n")
         freshness = audit["freshness"]
         days_old = freshness.get("days_old")
         if days_old is None:
@@ -257,61 +457,65 @@ async def deep_analysis_handler(
             if missing
             else "None")
         text = f"""
-            📊 {stocks_data['name']} ({stocks_data['ticker']})
+            🔍 Подробный разбор
+        📊 {stocks_data['name']} ({stocks_data['ticker']})
 
-            📘 Fundamentals
-            • Debt/Equity: {stocks_data['debt_to_equity']}
-            • P/E: {stocks_data['pe']}
-            • EPS: {stocks_data['eps']}
-            • Market Cap: {stocks_data['market_cap']}
-            • Dividends: {stocks_data['dividends']}$
-            • Earnings: {stocks_data['earnings_date']}
+        📘 Основные показатели
+        • Долг / капитал: {format_percent(['debt_to_equity'])}
+            Чем ниже - тем лучше
+        • Цена / прибыль: {stocks_data['pe']}
+            Показывает, как компания ценится на рынке.
+            Желательно 20-30 коэффицентов
+        • Капитализация: {format_money(['market_cap'])}
+            Размер компании
 
-            🕌 Shariah Audit
+        🕌 Проверка по стандартам Шариата
 
-            Status: {screening['status']}
+        Статус: {format_shariah(screening["status"])}
 
-            📚 Standard:
+        📚 Стандарты:
 
-            • {audit['standard']}
+        • {audit['standard']}
 
-            🏢 Business Screen
+        🏢 Проверка бизнеса
 
-            • {audit['business']['message']}
+        • {audit['business']['message']}
 
-            📊 Financial Audit
+        📊 Финансовая проверка
 
-                {audit_text}
+            {audit_text}
 
-            🕒 Data Freshness
+        🕒 Актуальность данных
 
-            • {freshness_text}
+        • {freshness_text}
 
-            🧩 Missing Data
+        🧩 Недостающие данные
 
-            • {missing_text}
-
-
-
-            📊 Risk Metrics
-
-            • Volatility: {vol}%
-            • Max Drawdown: {dd}%
-            • Beta: {beta}
-            • Sharpe Ratio: {sharpe}
-
-            • Risk Level: {risk_label}
-            • Risk Score: {risk_score}/100
+        • {missing_text}
 
 
-            📈 Growth
-            • 1D: {stocks_data['growth']['1D']}%
-            • 5D: {stocks_data['growth']['5D']}%
-            • 1M: {stocks_data['growth']['1M']}%
-            • 6M: {stocks_data['growth']['6M']}%
-            • 1Y: {stocks_data['growth']['1Y']}%
-            • 5Y: {stocks_data['growth']['5Y']}%
-            """
+
+        📊 Риск
+
+        • Волатильность: {format_percent(vol)}%
+            насколько сильно колелблется цена
+        • Максимальная просадка: {format_percent(dd)}%
+            Самое сильное падение за период
+        • Волатильность по сравнению с рынком: {beta}
+        • Доходность по отношению с риском: {sharpe}
+
+        • Уровень риска: {risk_label}
+        • Оценка риска: {risk_score}/100
+
+
+        📈 Доходность
+        {signed_growth(stocks_data['growth']['1D'])} 1 день: {stocks_data['growth']['1D']}%
+        {signed_growth(stocks_data['growth']['5D'])} 5 дней: {stocks_data['growth']['5D']}%
+        {signed_growth(stocks_data['growth']['1M'])} 1 месяц: {stocks_data['growth']['1M']}%
+        {signed_growth(stocks_data['growth']['6M'])} 6 месяцев: {stocks_data['growth']['6M']}%
+        {signed_growth(stocks_data['growth']['1Y'])} 1 год: {stocks_data['growth']['1Y']}%
+        {signed_growth(stocks_data['growth']['5Y'])} 5 лет: {stocks_data['growth']['5Y']}%
+        """
         await callback.message.answer(text, reply_markup=kb.after_analysis)
 
     if mode_type == "etfs":
@@ -319,76 +523,75 @@ async def deep_analysis_handler(
         if "error" in data:
             await callback.message.answer(data["error"])
             return
-        screening = await shariah_screen_etf_full(
-            ticker,
-            get_etf_holdings)
+        screening = await AnalyticsService.measure(
+            user_id=callback.from_user.id,
+            event_name="etf.screening",
+            coro=shariah_screen_etf_full(ticker, get_etf_holdings))
         risk = await calculate_etf_risk(ticker)
         top_holdings_text = ""
         for item in screening.get("trust_breakdown", [])[:5]:
             status_icon = {
-                "HALAL ✅": "✅",
-                "MOSTLY HALAL ⚠️": "⚠️",
-                "MIXED ⚠️": "⚠️",
-                "NOT HALAL ❌": "❌"}.get(item["status"], "➖")
-            trust_percent = round(item["trust"] * 100, 1)
-            effective = round(item["effective_weight"] * 100, 2)
+                "СООТВЕТСТВУЕТ ШАРИАТУ ✅": "✅",
+                "Скорее соответствует Шариату ⚠️": "⚠️",
+                "Нужна дополнительная проверка ⚠️": "⚠️",
+                "НЕ СООТВЕТСТВУЕТ ❌": "❌",
+                "UNKNOWN": "➖"}.get(item["status"], "➖")
             top_holdings_text += (
                 f"{status_icon} {item['ticker']}\n"
-                f"• Status: {item['status']}\n"
-                f"• Portfolio Weight: {item['weight']:.2%}\n"
-                f"• Trust: {trust_percent}%\n"
-                f"• Effective Halal Weight: {effective}%\n\n")
+                f"• Статус: {item['status']}\n"
+                f"• Вес в фонде: {item['weight']:.2%}\n\n")
 
         text = f"""
             🧩 {data['name']} ({data['ticker']})
 
-            💵 Price: {data['price']}$
+        💵 Цена: {round(data['price'], 2)}$
 
-            📦 ETF Data
-            NAV: {data['nav']}
-            Net Assets: {data['net_assets']}
-            P/E: {data['pe']}
-            Expense Ratio: {data['expense']}
+        📦 Данные Фонда
+        Активы фонда: {format_money(data['net_assets'])}
+        Цена / прибыль: {round(data['pe'], 2)}
 
-            🕌 ETF Shariah Audit
+        🕌 Проверка фонда на соответствие Шариату
 
-            Status: {screening['status']}
+        Статус: {format_shariah(screening["status"])}
 
-            Halal Exposure: {screening['halal_percent']}%
-            Trust Score: {screening['trust_score']}/100
+        Доля соответствующих активов: {format_percent(['halal_percent'])}%
+        Покрытие анализа: {format_percent(screening['covered_percent'])}%
+        Не удалось проверить: {format_percent(screening.get('unknown_percent', 0))}%
 
-            📚 Screening Coverage
+        📚 Покрытие проверки
 
-            • Holdings analyzed: {screening['total_analyzed']}
+        • Проверено активов: {format_percent(screening['total_analyzed'])}
 
-            • Portfolio coverage: {screening['covered_percent']}%
+        • Покрытие портфеля: {format_percent(screening['covered_percent'])}%
 
-            • Methodology: TOP-weighted holdings screening
+        • Метод: Анализ крупнейших позиций фонда
 
-            Top Holdings Audit:
+        📊 Крупнейшие позиции фонда:
 
-            {top_holdings_text}
+        {top_holdings_text}
 
-            📊 Risk Metrics
+        📊 Риск
 
-            • Volatility: {risk['volatility']}%
-            • Max Drawdown: {risk['drawdown']}%
-            • Beta: {risk['beta']}
-            • Sharpe Ratio: {risk['sharpe']}
+        • Волатильность: {format_percent(risk['volatility'])}%
+            Насколько сильно колеблется цена
+        • Масимальная просадка: {format_percent(risk['drawdown'])}%
+            Самое сильное падение за период
+        • Волатильность по сравнению с рынком: {risk['beta']}
+        • Доходность по отношению с риском: {risk['sharpe']}
 
-            • Risk Level: {risk['risk_label']}
-            • Risk Score: {risk['risk_score']}/100
+        • Уровень риска: {risk['risk_label']}
+        • Оценка риска: {risk['risk_score']}/100
 
 
-            📈 Growth
+        📈 Рост
 
-            • 1D: {data['growth']['1D']}%
-            • 5D: {data['growth']['5D']}%
-            • 1M: {data['growth']['1M']}%
-            • 6M: {data['growth']['6M']}%
-            • 1Y: {data['growth']['1Y']}%
-            • 5Y: {data['growth']['5Y']}%
-            """
+        {signed_growth(data['growth']['1D'])} 1 день: {data['growth']['1D']}%
+        {signed_growth(data['growth']['5D'])} 5 дней: {data['growth']['5D']}%
+        {signed_growth(data['growth']['1M'])} 1 месяц: {data['growth']['1M']}%
+        {signed_growth(data['growth']['6M'])} 6 месяцев: {data['growth']['6M']}%
+        {signed_growth(data['growth']['1Y'])} 1 год: {data['growth']['1Y']}%
+        {signed_growth(data['growth']['5Y'])} 5 лет: {data['growth']['5Y']}%
+        """
         await callback.message.answer(text, reply_markup=kb.after_analysis)
         from aiogram.types import BufferedInputFile
         chart = await generate_asset_growth_graph(ticker)
@@ -396,15 +599,14 @@ async def deep_analysis_handler(
             photo = BufferedInputFile(
                 chart.read(),
                 filename=f"{ticker}.png")
-            await callback.message.answer_photo(
-                photo,
-                caption=f"📈 {ticker} Price Chart (1Y)")
+            await callback.message.answer_photo(photo,
+                caption=f"📈 {ticker} Рост цены за 1 год")
         data_state = await state.get_data()
         ticker = data_state["last_ticker"]
         asyncio.create_task(
             AnalyticsService.track_event(
                 user_id=callback.message.from_user.id,
-                event_name="etf_analyzed",
+                event_name="etf.analyzed",
                 category="invest",
                 event_data={"ticker": ticker}))
         return
