@@ -1,5 +1,5 @@
 import uuid
-from financial_models import InsightCard
+from Explanation.financial_models import InsightCard
 from MainEngines.goal_engine import optimize_portfolio_for_goals
 from VisualFeatures.renderer import classify_goal_gap
 
@@ -61,61 +61,57 @@ class FinancialBrain:
                 else "high")
             gap_type = classify_goal_gap(delta)
             if gap_type == "manageable":
-                headline = f"{goal_name} needs +${int(delta)}/mo"
+                headline = f"Для цели «{goal_name}» может понадобиться ещё ${int(delta)}/мес"
                 summary = (
-                    f"Small increase in monthly investing "
-                    f"may help reach this goal in {years} years.")
+                    f"Небольшое увеличение ежемесячных вложений "
+                    f"может помочь достичь цели за {years} лет.")
                 why = (
-                    f"You currently invest about "
-                    f"${int(current_budget)}/month, "
-                    f"while this goal may require "
-                    f"around ${int(monthly_needed)}/month.")
+                    f"Сейчас вы инвестируете около "
+                    f"${int(current_budget)}/мес, "
+                    f"а для достижения цели может понадобиться "
+                    f"около ${int(monthly_needed)}/мес.")
                 impact = (
-                    f"Increasing monthly investing "
-                    f"may improve the probability "
-                    f"of reaching this goal.")
+                    "Увеличение регулярных вложений "
+                    "повысит вероятность достижения цели.")
             elif gap_type == "challenging":
-                headline = f"{goal_name} may need faster investing"
+                headline = f"Для цели «{goal_name}» текущего темпа может не хватить"
                 summary = (
-                    f"Current pace may be insufficient "
-                    f"for your target timeline.")
+                    "При текущих вложениях достичь цели "
+                    "в заданный срок может быть сложно.")
                 why = (
-                    f"You currently invest about "
-                    f"${int(current_budget)}/month, "
-                    f"while this goal may require "
-                    f"around ${int(monthly_needed)}/month.")
+                    f"Сейчас вы инвестируете около "
+                    f"${int(current_budget)}/мес, "
+                    f"а для достижения цели может понадобиться "
+                    f"около ${int(monthly_needed)}/мес.")
                 impact = (
-                    f"Increasing monthly investing "
-                    f"may improve the probability "
-                    f"of reaching this goal.")
+                    "Увеличение регулярных вложений "
+                    "повысит вероятность достижения цели.")
             elif gap_type == "aggressive":
-                headline = f"{goal_name} target is very ambitious"
+                headline = f"Цель «{goal_name}» выглядит очень амбициозной"
                 summary = (
-                    f"This goal may require significantly "
-                    f"higher contributions or a longer timeline.")
+                    "Для её достижения могут потребоваться "
+                    "значительно большие вложения или более долгий срок.")
                 why = (
-                    f"You currently invest about "
-                    f"${int(current_budget)}/month, "
-                    f"while this goal may require "
-                    f"around ${int(monthly_needed)}/month.")
+                    f"Сейчас вы инвестируете около "
+                    f"${int(current_budget)}/мес, "
+                    f"а для достижения цели может понадобиться "
+                    f"около ${int(monthly_needed)}/мес.")
                 impact = (
-                    f"Increasing monthly investing "
-                    f"may improve the probability "
-                    f"of reaching this goal.")
+                    "Увеличение регулярных вложений "
+                    "повысит вероятность достижения цели.")
             else:
-                headline = f"{goal_name} goal may be unrealistic"
+                headline = f"Цель «{goal_name}» сейчас выглядит труднодостижимой"
                 summary = (
-                    f"Current target likely requires "
-                    f"an unusually high investing pace.")
+                    "При текущих параметрах цель может требовать "
+                    "слишком высокой скорости накопления капитала.")
                 why = (
-                    f"You currently invest about "
-                    f"${int(current_budget)}/month, "
-                    f"while this goal may require "
-                    f"around ${int(monthly_needed)}/month.")
+                    f"Сейчас вы инвестируете около "
+                    f"${int(current_budget)}/мес, "
+                    f"а для достижения цели может понадобиться "
+                    f"около ${int(monthly_needed)}/мес.")
                 impact = (
-                    f"Increasing monthly investing "
-                    f"may improve the probability "
-                    f"of reaching this goal.")
+                    "Увеличение регулярных вложений "
+                    "повысит вероятность достижения цели.")
             items.append(
                 InsightCard(
                     id=str(uuid.uuid4()),
@@ -127,7 +123,7 @@ class FinancialBrain:
                     summary=summary,
                     why_it_matters=why,
                     impact=impact,
-                    action_label="🚀 Improve Plan",
+                    action_label="🚀 Улучшить план",
                     callback="goal_fix"))
         return items
 
@@ -154,20 +150,18 @@ class FinancialBrain:
                     if excess > 15
                     else "high"),
                 emoji="🛡",
-                headline="Portfolio risk may exceed your comfort level",
+                headline="Риск портфеля может быть выше комфортного уровня",
                 summary=(
-                    f"Current volatility is "
-                    f"{round(volatility, 1)}%, above your "
-                    f"{risk_pref}-risk profile."
-                    f"Large market swings may become harder to tolerate."),
+                    f"Текущая волатильность составляет "
+                    f"{round(volatility, 1)}%, что выше "
+                    f"вашего уровня риска ({risk_pref})."),
                 why_it_matters=(
-                    "Higher volatility increases "
-                    "the chance of large losses "
-                    "during market downturns."),
+                    "При сильных падениях рынка стоимость "
+                    "портфеля может снижаться заметнее, чем ожидается."),
                 impact=(
-                    "Rebalancing may reduce "
-                    "drawdown risk"),
-                action_label="⚖️ Reduce Risk",
+                    "Ребалансировка может сделать "
+                    "портфель более стабильным."),
+                action_label="⚖️ Снизить риск",
                 callback="rebalance_now"))
         return items
 
@@ -192,25 +186,23 @@ class FinancialBrain:
                     if weight > 0.65
                     else "high"),
                 emoji="📉",
-                headline=(f"{ticker} dominates portfolio"),
+                headline=f"{ticker} занимает слишком большую долю портфеля",
                 summary=(
-                    f"{ticker} represents "
-                    f"{int(weight * 100)}% "
-                    f"of total allocation."),
+                    f"На {ticker} приходится "
+                    f"{int(weight * 100)}% всех инвестиций."),
                 why_it_matters=(
-                    "Heavy concentration in one asset "
-                    "can significantly increase "
-                    "portfolio drawdowns."),
+                    "Если с этим активом возникнут проблемы, "
+                    "это может сильно повлиять на весь портфель."),
                 impact=(
-                    f"Reducing {ticker} exposure "
-                    f"may improve diversification"),
-                action_label="⚖️ Diversify",
+                    "Более равномерное распределение "
+                    "может снизить риск."),
+                action_label="📦 Диверсифицировать",
                 callback="rebalance_now"))
         return items
 
     def market_insights(self):
         items = []
-        if self.regime != "bear":
+        if self.regime != "Снижение рынка 📉":
             return items
         budget = (self.portfolio_profile.monthly_budget or 0)
         if budget <= 0:
@@ -222,19 +214,19 @@ class FinancialBrain:
                 priority=40,
                 severity="medium",
                 emoji="📈",
-                headline="Bear market may improve entry prices",
+                headline="Падение рынка может быть возможностью для покупок",
                 summary=(
-                    "Long-term investors often benefit "
-                    "from investing during downturns."),
+                    "Многие долгосрочные инвесторы продолжают "
+                    "покупать активы даже во время просадок."),
                 why_it_matters=(
-                    "Historically, investing during "
-                    "bear markets improved long-term "
-                    "returns after recovery periods."),
+                    "Исторически покупки во время спадов "
+                    "часто приносили хороший результат "
+                    "после восстановления рынка."),
                 impact=(
-                    f"Deploying your "
-                    f"${int(budget)}/mo plan consistently "
-                    f"may improve long-term returns"),
-                action_label="💰 Auto Invest",
+                    f"Регулярное инвестирование по "
+                    f"${int(budget)}/мес может помочь "
+                    f"накопить больше капитала в будущем."),
+                action_label="💰 Авто-Инвестирование",
                 callback="auto_invest"))
         return items
 
@@ -249,17 +241,16 @@ class FinancialBrain:
                 priority=70,
                 severity="medium",
                 emoji="🧭",
-                headline="Portfolio has no financial goals",
+                headline="У портфеля пока нет финансовой цели",
                 summary=(
-                    "Your investments currently "
-                    "have no defined target."),
+                    "Пока не указано, для чего именно "
+                    "создаётся капитал."),
                 why_it_matters=(
-                    "Clear goals improve discipline, "
-                    "risk management, and "
-                    "long-term consistency."),
+                    "Цели помогают выбрать подходящий риск, "
+                    "сумму вложений и срок инвестирования."),
                 impact=(
-                    "Adding goals enables "
-                    "AI planning and optimization"),
-                action_label="🎯 Add Goal",
+                    "После добавления цели ИИ сможет "
+                    "давать более точные рекомендации."),
+                action_label="🎯 Добавить цель",
                 callback="goal_settings"))
         return items
