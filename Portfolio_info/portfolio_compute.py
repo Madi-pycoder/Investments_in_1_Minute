@@ -1,9 +1,9 @@
 import asyncio
 from MainMetricsComputingFeatures.riskmanagement import calculate_portfolio_risk, generate_risk_alerts
-from Portfolio_Handlers.shariah_optimizer import optimize_shariah_portfolio
-from Portfolio_Handlers.sharpe_optimizer import optimize_by_sharpe
-from Portfolio_Handlers.halal_portfolio_generator import generate_halal_portfolio
-from Portfolio_Handlers.portoflio_rebalance import calculate_rebalance
+from MainEngines.shariah_optimizer import optimize_shariah_portfolio
+from MainEngines.sharpe_optimizer import optimize_by_sharpe
+from MainEngines.halal_portfolio_generator import generate_halal_portfolio
+from MainEngines.portoflio_rebalance import calculate_rebalance
 from MainMetricsComputingFeatures.shariah import calculate_portfolio_purification, shariah_screen
 from Explanation.ai_explain import explain_portfolio_logic
 from MainEngines.goal_engine import (
@@ -11,6 +11,7 @@ from MainEngines.goal_engine import (
     simulate_multiple_goals, generate_auto_invest_plan,
     run_what_if_scenarios, generate_smart_nudges,)
 from MarketFeatures.market_regime import detect_market_regime
+from ProfileData.user_profile import get_effective_monthly_budget, get_portfolio_profile
 from ProjectDataBase.market_data_service import get_price_history, update_history
 import numpy as np
 
@@ -113,7 +114,7 @@ def compute_sector_exposure(positions, prices, stocks, total_value):
 
 
 
-def compute_goal_insights(positions_data, total_value, goals, risk):
+def compute_goal_insights(positions_data, total_value, goals, risk, portfolio_profile):
     if not goals:
         return None, None, [], None
     vol = (risk.get("volatility") or 15) / 100
@@ -125,14 +126,12 @@ def compute_goal_insights(positions_data, total_value, goals, risk):
         total_value,
         goals,
         vol)
+    monthly_budget = get_effective_monthly_budget(portfolio_profile, total_value)
     nudges = generate_smart_nudges(goal_results)
     what_if = None
     if goals:
-        what_if = run_what_if_scenarios(
-            positions_data,
-            total_value,
-            goals[0],
-            vol)
+        what_if = run_what_if_scenarios(positions_data,
+            total_value, goals[0], vol, monthly_budget)
     return goal_results, auto_invest, nudges, what_if
 
 
@@ -168,7 +167,7 @@ async def compute_light_metrics(data):
             continue
         screening = await shariah_screen(stock)
         p["shariah_compliant"] = (
-                screening["status"] == "HALAL ✅")
+                screening["status"] == "СООТВЕТСТВУЕТ ШАРИАТУ ✅")
     sector_exposure = compute_sector_fast(positions, prices, stocks)
     goal_results = simulate_multiple_goals(
         positions_data,
@@ -194,9 +193,11 @@ async def compute_rebalance(positions_data, stocks, total_value):
 
 async def compute_portfolio_metrics(data):
     positions = data["positions"]
+    portfolio_id = data.get("portfolio_id")
     prices = data["prices_dict"]
     stocks = data["stocks_batch"]
     goals = data.get("goals") or []
+    portfolio_profile = await get_portfolio_profile(portfolio_id)
     positions_data, total_value = build_positions_data(positions, prices, data)
     for p in positions_data:
         stock = stocks.get(p["ticker"])
@@ -205,7 +206,7 @@ async def compute_portfolio_metrics(data):
             continue
         screening = await shariah_screen(stock)
         p["shariah_compliant"] = (
-            screening["status"] == "HALAL ✅")
+            screening["status"] == "СООТВЕТСТВУЕТ ШАРИАТУ ✅")
     top_gainers, top_losers = get_top_movers(positions_data)
     risk, sharpe, halal = await compute_async_insights(positions_data, stocks)
     shariah_rebalance = await compute_rebalance(positions_data, stocks, total_value)
@@ -215,10 +216,8 @@ async def compute_portfolio_metrics(data):
         positions_data,
         stocks)
     goal_results, auto_invest, nudges, what_if = compute_goal_insights(
-        positions_data,
-        total_value,
-        goals,
-        risk)
+        positions_data, total_value,
+        goals, risk, portfolio_profile)
     alerts = generate_risk_alerts(risk)
     goals = data.get("goals") or []
     market_prices = await get_market_prices()
