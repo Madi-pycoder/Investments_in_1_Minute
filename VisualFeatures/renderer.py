@@ -18,9 +18,10 @@ def classify_goal_gap(delta):
 def render_insight_cards(insights, metrics):
     if not insights:
         return (
-            "✅ No major portfolio issues detected.", None)
-    text = ("🧠 Portfolio Intelligence\n\n"
-            "Top opportunities and risks detected:")
+            "✅ Проблем в вашем портфеле нет", None)
+    text = (
+        "🧠 Что можно улучшить\n\n"
+        "Мы нашли несколько возможностей повысить доходность или снизить риск:\n\n")
     expected_return = metrics.get("expected_return")
     buttons = []
     for card in insights:
@@ -32,7 +33,7 @@ def render_insight_cards(insights, metrics):
             f"{card.summary}\n")
         if expected_return:
             text += (
-                f"\n📊 Expected Return\n"
+                f"\n📈 Потенциальная доходность\n"
                 f"{round(expected_return, 1)}% yearly\n")
         if card.action_label and card.callback:
             buttons.append(
@@ -49,9 +50,45 @@ def render_insight_cards(insights, metrics):
 
 def format_shariah(status):
     mapping = {
-        "HALAL ✅": "Passed ✅",
-        "MOSTLY HALAL ⚠️": "Mostly Passed ⚠️",
-        "MIXED ⚠️": "Mixed Exposure ⚠️",
-        "NOT HALAL ❌": "Did Not Pass ❌",
-        "UNKNOWN": "Not Available"}
-    return mapping.get(status, "Not Available")
+        "СООТВЕТСТВУЕТ ШАРИАТУ ✅": "Соответствует ✅",
+        "Скорее соответствует Шариату ⚠️": "Почти соответствует ⚠️",
+        "Нужна дополнительная проверка ⚠️": "Нужна дополнительная проверка ⚠️",
+        "НЕ СООТВЕТСТВУЕТ ❌": "Не соответствует ❌",
+        "НЕДОСТАТОЧНО ДАННЫХ ⚠️": "Недостаточно данных ⚠️"}
+    return mapping.get(status, "Недостаточно данных ⚠️")
+
+
+def format_money(value):
+    if value is None:
+        return "Нет данных"
+    value = float(value)
+    if value >= 1_000_000_000_000:
+        return f"${value/1_000_000_000_000:.2f} трлн"
+    if value >= 1_000_000_000:
+        return f"${value/1_000_000_000:.2f} млрд"
+    if value >= 1_000_000:
+        return f"${value/1_000_000:.2f} млн"
+    if value >= 1_000:
+        return f"${value/1_000:.2f} тыс"
+    return f"${value:.2f}"
+
+
+def format_percent(value):
+    if value is None:
+        return "Нет данных"
+    return f"{float(value):.1f}"
+
+
+def risk_bar(score):
+    filled = round(score/20)
+    return "🟩" * filled + "⬜" * (5 - filled)
+
+
+def signed_growth(x):
+    if x is None:
+        return "Нет данных"
+    if x >= 0:
+        icon = "🟢"
+    else:
+        "🔴"
+    return f"{icon} {x:=.1f}$"
