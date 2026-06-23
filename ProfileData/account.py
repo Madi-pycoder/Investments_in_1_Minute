@@ -42,19 +42,18 @@ async def portfolio_hub(callback: CallbackQuery):
     demos = await rq.get_user_portfolios(callback.from_user.id)
     if not demos:
         text = (
-            "💼 Create your free demo portfolio\n\n"
-            
-            "With portfolio you can:\n"
-            "• Track investments\n"
-            "• Get AI advice\n"
-            "• Build monthly plans\n"
-            "• Set goals\n"
-            "• Rebalance automatically")
+            "💼 Создайте учебный портфель\n\n"
+            "Он поможет вам:\n"
+            "• Следить за инвестициями\n"
+            "• Получать рекомендации\n"
+            "• Планировать вложения\n"
+            "• Ставить финансовые цели\n"
+            "• Проверять состав портфеля")
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="🚀 Create Portfolio",
+                        text="🚀 Создать портфель",
                         callback_data="create_demo")]])
         await callback.message.answer(
             text,
@@ -68,14 +67,14 @@ async def portfolio_hub(callback: CallbackQuery):
                 callback_data=f"select_portfolio_{portfolio.id}"),])
     keyboard.append([
         InlineKeyboardButton(
-            text="➕ New Portfolio",
+            text="➕ Создать новый портфель",
             callback_data="create_demo")])
     keyboard.append([
         InlineKeyboardButton(
-            text="🗑 Delete Portfolio",
+            text="🗑 Удалить портфель",
             callback_data="delete_portfolio_menu")])
     await callback.message.answer(
-        "📂 Choose portfolio:",
+        "📂 Выберите портфель:",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=keyboard))
 
@@ -84,8 +83,15 @@ async def select_portfolio(callback: CallbackQuery, state: FSMContext):
     portfolio_id = int(callback.data.split("_")[-1])
     portfolio = await rq.get_portfolio(portfolio_id)
     if not portfolio:
-        await callback.message.answer("❌ Portfolio not found.")
+        await callback.message.answer("❌ Портфель не найден")
         return
+    asyncio.create_task(
+        AnalyticsService.track_event(
+            user_id=callback.from_user.id,
+            event_name="portfolio.opened",
+            category="funnel",
+            event_data={
+                "portfolio_id": portfolio_id}))
     await state.set_data({"portfolio_id": portfolio_id})
     positions = await rq.get_positions(portfolio_id)
     goals = await rq.get_goals(portfolio_id)
@@ -93,17 +99,21 @@ async def select_portfolio(callback: CallbackQuery, state: FSMContext):
     print("GOALS COUNT:", len(goals))
     total_positions = len(positions)
     text = (
-        f"💼 Portfolio connected\n\n"
-        f"💵 Cash: ${portfolio.cash:,.2f}\n"
-        f"📦 Positions: {total_positions}\n"
-        f"🎯 Goals: {len(goals)}\n\n")
+        f"💼 Портфель открыт\n\n"
+        f"💵 Свободные средства: ${portfolio.cash:,.2f}\n"
+        f"📦 Активов: {total_positions}\n"
+        f"🎯 Целей: {len(goals)}\n\n")
     if not goals:
-        text += "🎯 Next step:\nAdd your first goal"
+        text += ("🎯 Следующий шаг:\n"
+                 "Добавтье первую цель")
     elif not positions:
-        text += "📈 Next step:\nAdd your first investment"
+        text += ("📈 Следующий шаг:\n"
+                 "Добавьте первый актив")
     else:
-        text += "⚡ Next step:\nReview AI recommendations"
-    await callback.message.answer(text, reply_markup=kb.portfolio_dashboard)
+        text += ("⚡ Следующий шаг:\n"
+                 "Посмотрите рекомендации")
+    await callback.message.answer(text,
+        reply_markup=kb.portfolio_dashboard)
 
 
 @router.callback_query(F.data == "delete_portfolio_menu")
@@ -116,7 +126,7 @@ async def delete_portfolio_menu(callback: CallbackQuery):
                 text=f"🗑 {demo.name}",
                 callback_data=f"delete_portfolio_{portfolio.id}")])
     await callback.message.answer(
-        "Choose portfolio to delete:",
+        "Выберите портфель для удаления:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
 
 
@@ -124,7 +134,7 @@ async def delete_portfolio_menu(callback: CallbackQuery):
 async def delete_portfolio(callback: CallbackQuery):
     portfolio_id = int(callback.data.split("_")[-1])
     await rq.delete_portfolio(portfolio_id)
-    await callback.message.answer("✅ Portfolio deleted.")
+    await callback.message.answer("✅ Портфель удалён")
 
 
 @router.callback_query(F.data == "create_demo")
@@ -132,13 +142,13 @@ async def cmd_create_demo(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await rq.set_user(callback.from_user.id)
     await state.set_state(Reg.name)
-    await callback.message.answer("👤 Enter your name:")
+    await callback.message.answer("👤 Как вас зовут?")
 
 @router.message(Reg.name)
 async def cmd_demoname(message: Message, state: FSMContext):
     await state.update_data(name=message.text)
     await state.set_state(Reg.name_demo)
-    await message.answer("Enter demo-portfolio's full name")
+    await message.answer("📝 Придумайте название портфеля")
 
 @router.message(Reg.name_demo)
 async def cmd_regend(message: Message, state: FSMContext):
@@ -146,31 +156,37 @@ async def cmd_regend(message: Message, state: FSMContext):
     data = await state.get_data()
     portfolio_id = await rq.create_demo_portfolio(
         tg_id=message.from_user.id,
-        owner_name=data['name'],
         demo_name=data['name_demo'])
+    asyncio.create_task(
+        AnalyticsService.track_event(
+            user_id=message.from_user.id,
+            event_name="portfolio.created",
+            category="funnel",
+            event_data={"portfolio_id": portfolio_id}))
     await message.answer(
-        f"✅ Demo-portfolio created!\n\n"
-        f"Owner: {data['name']}\n"
-        f"Portfolio: {data['name_demo']}\n"
-        f"Start balance: $10 000\n"
-        f"ID: {portfolio_id}")
+        f"✅ Портфель создан!\n\n"
+        f"👤 Владелец: {data['name']}\n"
+        f"💼 Название: {data['name_demo']}\n"
+        f"💵 Стартовый баланс: $10 000\n"
+        f"🆔 ID: {portfolio_id}")
     await state.clear()
     await state.update_data(portfolio_id=portfolio_id)
     await message.answer(
-        "🚀 Your portfolio is ready!\n\n"
-        "You can now:\n"
-        "• Analyze portfolio\n"
-        "• Get AI recommendations\n"
-        "• Set financial goals\n"
-        "• Auto-rebalance investments\n"
-        "• Build monthly plans",
+        "🚀 Всё готово!\n\n"
+        "Теперь вы можете:\n"
+        "• Анализировать портфель\n"
+        "• Получать рекомендации\n"
+        "• Ставить финансовые цели\n"
+        "• Следить за прогрессом\n"
+        "• Планировать регулярные вложения",
         reply_markup=kb.portfolio_dashboard)
 
 @router.callback_query(F.data == "goal_settings")
 async def goal_start(callback: CallbackQuery,state: FSMContext):
     await callback.answer()
     await state.set_state(GoalQuiz.waiting_goal)
-    await callback.message.answer("🎯 Choose your goal:",reply_markup=kb.goal_name_quiz)
+    await callback.message.answer("🎯 Для чего вы инвестируете?",
+        reply_markup=kb.goal_name_quiz)
 
 
 @router.callback_query(GoalQuiz.waiting_goal,F.data.startswith("goal_"))
@@ -179,17 +195,18 @@ async def goal_pick(callback: CallbackQuery, state: FSMContext):
     if goal_name == "custom":
         await state.set_state(
             GoalQuiz.custom_goal_name)
-        await callback.message.answer("Enter custom goal name:")
+        await callback.message.answer("✍️ Введите название цели:")
         return
     await state.update_data(goal_name=goal_name)
     await state.set_state(GoalQuiz.waiting_amount)
-    await callback.message.answer("💰 Choose target amount:", reply_markup=kb.goal_amount_quiz)
+    await callback.message.answer("💰 Какую сумму хотите накопить?",
+        reply_markup=kb.goal_amount_quiz)
 
 @router.message(GoalQuiz.custom_goal_name)
 async def custom_goal_name(message: Message, state: FSMContext):
     await state.update_data(goal_name=message.text)
     await state.set_state(GoalQuiz.waiting_amount)
-    await message.answer("💰 Choose target amount:",
+    await message.answer("💰 Какую сумму хотите накопить?",
         reply_markup=kb.goal_amount_quiz)
 
 
@@ -199,22 +216,23 @@ async def goal_amount(callback: CallbackQuery, state: FSMContext):
     amount = int(callback.data.replace("amount_", ""))
     await state.update_data(goal_amount=amount)
     await state.set_state(GoalQuiz.waiting_timeline)
-    await callback.message.answer("⏳ Choose timeline:", reply_markup=kb.goal_timeline)
+    await callback.message.answer("⏳ За какой срок хотите достичь цели?",
+        reply_markup=kb.goal_timeline)
 
 @router.callback_query(GoalQuiz.waiting_amount, F.data == "amount_custom")
 async def custom_goal_amount_start(callback: CallbackQuery,state: FSMContext):
     await state.set_state(GoalQuiz.custom_goal_amount)
-    await callback.message.answer("💰 Enter custom target amount:")
+    await callback.message.answer("💰 Какую сумму хотите накопить?")
 
 @router.message(GoalQuiz.custom_goal_amount)
 async def custom_goal_amount(message: Message,state: FSMContext):
     try: amount = float(message.text)
     except:
-        await message.answer("❌ Enter valid number.")
+        await message.answer("❌ Введите корректное число")
         return
     await state.update_data(goal_amount=amount)
     await state.set_state(GoalQuiz.waiting_timeline)
-    await message.answer("⏳ Choose timeline:", reply_markup=kb.goal_timeline)
+    await message.answer("⏳ За какой срок хотите достичь цели?", reply_markup=kb.goal_timeline)
 
 @router.callback_query(GoalQuiz.waiting_timeline,F.data.startswith("timeline_"))
 async def goal_timeline(callback: CallbackQuery, state: FSMContext):
@@ -227,18 +245,18 @@ async def goal_timeline(callback: CallbackQuery, state: FSMContext):
         return
     await state.update_data(goal_timeline=int(timeline))
     await state.set_state(GoalQuiz.waiting_compliance)
-    await callback.message.answer("🕌 Choose compliance:",
+    await callback.message.answer("🕌 Учитывать исламские ограничения?",
         reply_markup=kb.goal_compliance)
 
 @router.message(GoalQuiz.custom_goal_timeline)
 async def custom_goal_timeline(message: Message, state: FSMContext):
     try: years = int(message.text)
     except:
-        await message.answer("Enter valid number.")
+        await message.answer("❌ Введите корректное число")
         return
     await state.update_data(goal_timeline=years)
     await state.set_state(GoalQuiz.waiting_compliance)
-    await message.answer("🕌 Choose compliance:",
+    await message.answer("🕌 Учитывать исламские ограничения?",
         reply_markup=kb.goal_compliance)
 
 @router.callback_query(GoalQuiz.waiting_compliance,F.data.startswith("compliance_"))
@@ -257,16 +275,16 @@ async def goal_finish(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_data({"portfolio_id": portfolio_id})
     await callback.message.answer(
-        f"✅ Goal created!\n\n"
+        f"✅ Цель добавлена!\n\n"
         f"🎯 {goal['name']}\n"
-        f"💰 ${goal['amount']}\n"
-        f"⏳ {goal['years']} years\n"
-        f"🕌 {compliance.title()}",
+        f"💰 Целевая сумма: ${goal['amount']}\n"
+        f"⏳ Срок: {goal['years']} лет\n"
+        f"🕌 Режим: {compliance.title()}",
         reply_markup=kb.portfolio_dashboard)
     asyncio.create_task(
         AnalyticsService.track_event(
             user_id=callback.from_user.id,
-            event_name="goal_created",
+            event_name="goal.created",
             category="portfolio",
             event_data={
                 "goal": goal["name"],
@@ -281,12 +299,11 @@ async def profile_income(message: Message, state: FSMContext):
     try:
         income = float(message.text)
     except:
-        await message.answer("❌ Enter a valid number")
+        await message.answer("❌ Введите корректное число")
         return
     await update_user_profile(message.from_user.id, income=income)
     await state.set_state(ProfileSetup.budget)
-    await message.answer(
-        "💸 How much do you want to invest monthly?")
+    await message.answer("💸 Сколько готовы инвестировать каждый месяц?")
 
 
 @router.message(ProfileSetup.budget)
@@ -294,7 +311,7 @@ async def profile_budget(message: Message, state: FSMContext):
     try:
         budget = float(message.text)
     except:
-        await message.answer("❌ Enter a valid number")
+        await message.answer("❌ Введите корректное число")
         return
     data = await state.get_data()
     portfolio_id = data.get("portfolio_id")
@@ -302,23 +319,26 @@ async def profile_budget(message: Message, state: FSMContext):
         portfolio_id, monthly_budget=budget)
     await state.set_state(ProfileSetup.risk)
     await message.answer(
-        "📊 What's your risk level?\n\n"
-        "low / medium / high")
+        "📊 Какой риск вам комфортен?\n\n"
+        "🟢 низкий\n"
+        "🟡 средний\n"
+        "🔴 высокий")
 
 
 
 @router.message(ProfileSetup.risk)
 async def profile_risk(message: Message, state: FSMContext):
     risk = message.text.lower().strip()
-    if risk not in ["low", "medium", "high"]:
-        await message.answer("❌ Choose: low / medium / high")
+    if risk not in ["низкий", "средний", "высокий"]:
+        await message.answer("❌ Выберите: низкий, средний или высокий риск")
         return
     data = await state.get_data()
     portfolio_id = data.get("portfolio_id")
     await update_portfolio_profile(
         portfolio_id, risk_tolerance=risk)
     await state.clear()
-    await message.answer("✅ Profile ready! Building plan...")
+    await message.answer("✅ Профиль настроен!\n\n"
+        "Составляю ваш инвестиционный план...")
     text, keyboard = await build_auto_invest_response(
         message.from_user.id, portfolio_id)
     await message.answer(text, reply_markup=keyboard)
