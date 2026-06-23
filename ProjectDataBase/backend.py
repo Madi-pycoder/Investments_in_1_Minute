@@ -3,8 +3,9 @@ import asyncio
 import yfinance as yf
 from sqlalchemy import select, delete
 from MainEngines.auto_invest_engine import get_cached_metrics
-from cache import portfolio_data_cache, diagnosis_cache, portfolio_cache
-from models import Owner, Demo, Portfolio, Position, Transaction, Goal, async_session, PortfolioSettings
+from ProjectDataBase.cache import portfolio_data_cache, diagnosis_cache, portfolio_cache
+from ProjectDataBase.models import (Owner, Demo, Portfolio, Position, MarketPrice,
+    Transaction, Goal, async_session, PortfolioSettings)
 def make_portfolio_cache_key(positions):
     normalized = sorted(
         [(p["ticker"], round(p["weight"], 4))for p in positions])
@@ -44,7 +45,7 @@ async def set_user(tg_id: int):
             session.add(Owner(tg_id=tg_id))
             await session.commit()
 
-async def create_demo_portfolio(tg_id: int, owner_name: str, demo_name: str):
+async def create_demo_portfolio(tg_id: int, demo_name: str):
     async with async_session() as session:
         owner = await session.scalar(
             select(Owner).where(Owner.tg_id == tg_id))
@@ -52,7 +53,8 @@ async def create_demo_portfolio(tg_id: int, owner_name: str, demo_name: str):
             return None
         portfolio = Portfolio(
             owner_id=owner.id,
-            cash=10000.0)
+            cash=10000.0,
+            total_value = 10000.0)
         session.add(portfolio)
         await session.flush()
         demo = Demo(
@@ -86,6 +88,7 @@ async def buy_position(portfolio_id, ticker, qty, price, category_id):
         portfolio_cache.pop(portfolio_id, None)
         portfolio_data_cache.pop(portfolio_id, None)
         diagnosis_cache.pop(portfolio_id, None)
+        await recalculate_portfolio_value(portfolio_id)
 
 
 async def sell_position(portfolio_id, ticker, qty):
@@ -95,10 +98,11 @@ async def sell_position(portfolio_id, ticker, qty):
                 Position.portfolio_id == portfolio_id,
                 Position.ticker == ticker))
         if not position:
-            return False, "No position"
+            return False, "Этого актива нет в портфеле"
         EPS = 0.000001
         if position.quantity + EPS < qty:
-            return False, "Not enough shares"
+            return False, ("Недостаточно активов для продажи.\n\n"
+                "Проверьте количество в портфеле и попробуйте снова.")
         position.quantity -= qty
         if position.quantity <= EPS:
             await session.delete(position)
@@ -106,7 +110,8 @@ async def sell_position(portfolio_id, ticker, qty):
         portfolio_cache.pop(portfolio_id, None)
         portfolio_data_cache.pop(portfolio_id, None)
         diagnosis_cache.pop(portfolio_id, None)
-        return True, "ok"
+        await recalculate_portfolio_value(portfolio_id)
+        return True, "Продажа выполнена"
 
 
 async def add_transaction(portfolio_id, ticker, qty, price, is_buy):
@@ -152,22 +157,24 @@ async def login_demo_portfolio(tg_id: int, demo_name: str):
         owner = await session.scalar(
             select(Owner).where(Owner.tg_id == tg_id))
         if not owner:
-            return None, "User not found"
+            return None, "Пользователь не найден"
         demo = await session.scalar(
             select(Demo).where(Demo.name == demo_name))
         if not demo:
-            return None, "Demo not found"
+            return None, "Портфель не найден"
         portfolio = await session.scalar(
             select(Portfolio).where(Portfolio.id == demo.portfolio_id))
         if not portfolio:
-            return None, "Portfolio not found"
-        return portfolio, "ok"
+            return None, ("Портфель не найден.\n\n"
+                "Попробуйте открыть другой портфель или создать новый.")
+        return portfolio, "Успешный вход"
 
 
 async def update_cash(portfolio_id: int, new_cash: float):
     async with async_session() as session:
         portfolio = await session.get(Portfolio, portfolio_id)
         portfolio.cash = new_cash
+        await recalculate_portfolio_value(portfolio_id)
         await session.commit()
 
 
@@ -188,11 +195,20 @@ async def delete_portfolio(portfolio_id):
         await session.commit()
 
 
-async def execute_rebalance(portfolio_id, trades, prices_dict):
+
+async def execute_rebalance(portfolio_id, trades):
     async with async_session() as session:
         portfolio = await session.get(Portfolio, portfolio_id)
         if not portfolio:
-            return False, "Portfolio not found"
+            return False, "Портфель не найден"
+        tickers = [t["ticker"] for t in trades]
+        result = await session.execute(
+            select(MarketPrice.ticker, MarketPrice.price).where(
+                MarketPrice.ticker.in_(tickers)))
+        prices_dict = {ticker: price
+            for ticker, price in  result.all()}
+        print("PLAN:", trades)
+        print("PRICES:", prices_dict)
         executed_trades = []
         for t in trades:
             ticker = t["ticker"]
@@ -243,6 +259,7 @@ async def execute_rebalance(portfolio_id, trades, prices_dict):
                 if position.quantity <= 0:
                     await session.delete(position)
                 executed_trades.append(f"SELL {ticker} ${round(sell_qty * price, 2)}")
+                await recalculate_portfolio_value(portfolio_id)
                 session.add(Transaction(
                     portfolio_id=portfolio_id,
                     ticker=ticker,
@@ -253,6 +270,9 @@ async def execute_rebalance(portfolio_id, trades, prices_dict):
         portfolio_cache.pop(portfolio_id, None)
         portfolio_data_cache.pop(portfolio_id, None)
         diagnosis_cache.pop(portfolio_id, None)
+        if not executed_trades:
+            return False, "Не удалось выполнить сделки", []
+        await recalculate_portfolio_value(portfolio_id)
         return True, len(executed_trades), executed_trades
 
 
@@ -277,6 +297,7 @@ async def add_cash(portfolio_id: int, amount: float):
             return False
         portfolio.cash += amount
         await session.commit()
+        await recalculate_portfolio_value(portfolio_id)
         return True
 
 
@@ -284,3 +305,28 @@ async def get_stock_price(ticker):
     data = await asyncio.to_thread(yf.download, ticker, period="1d",
         interval="1y", progress=False, auto_adjust=True)
     return float(data["Close"].iloc[-1])
+
+
+async def deposit_monthly_budget(portfolio_id, amount):
+    async with async_session() as session:
+        portfolio = await session.get(Portfolio, portfolio_id)
+        portfolio.cash += amount
+        await session.commit()
+        return True
+
+
+async def recalculate_portfolio_value(portfolio_id):
+    async with async_session() as session:
+        portfolio = await session.get(Portfolio, portfolio_id)
+        positions = (await session.scalars(
+            select(Position).where(
+                Position.portfolio_id == portfolio_id))).all()
+        total = portfolio.cash
+        for pos in positions:
+            price = await session.scalar(
+                select(MarketPrice.price)
+                .where(MarketPrice.ticker == pos.ticker))
+            if price:
+                total += pos.quantity * price
+        portfolio.total_value = round(total, 2)
+        await session.commit()
