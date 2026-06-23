@@ -2,48 +2,40 @@ def explain_portfolio_logic(
     positions_data,
     risk,
     top_sector=None,
-    top_sector_weight=0
-):
+    top_sector_weight=0):
     if not positions_data:
         return (
-            "📭 No portfolio data yet.\n"
-            "Analyze your first investment to begin."
-        )
-    text = ("🧠 Portfolio Intelligence\n\n"
-            "Top opportunities and risks detected:")
+            "📭 Пока нет данных по портфелю.\n"
+            "Добавьте или проанализируйте первый актив.")
+    text = ("🧠 Разбор Портфеля\n\n"
+            "Что удалось заметить:")
     top_weight = max(
         p.get("weight", 0)
-        for p in positions_data
-    )
+        for p in positions_data)
     vol = risk.get("volatility", 0)
     insights = []
     if top_weight > 0.4:
         insights.append(
-            "One position dominates your portfolio."
-        )
+            "Один актив занимает слишком большую долю портфеля.")
     if len(positions_data) < 4:
         insights.append(
-            "Your diversification is still limited."
-        )
+            "Портфель пока недостаточно диверсифицирован.")
     if vol > 25:
         insights.append(
-            "Portfolio swings may feel stressful during market drops."
-        )
+            "Во время просадок стоимость портфеля может сильно колебаться.")
     if top_sector and top_sector_weight > 0.35:
         insights.append(
-            f"{top_sector} exposure is relatively high."
-        )
+            f"Доля сектора «{top_sector}» довольно высокая.")
     if not insights:
         insights.append(
-            "Your portfolio currently looks reasonably balanced."
-        )
+            "Портфель выглядит достаточно сбалансированным.")
     for item in insights[:3]:
         text += f"• {item}\n"
-    text += "\n👇 Suggested next step:\n"
+    text += "\n💡 Что можно сделать:\n"
     if vol > 25:
-        text += "⚖️ Reduce portfolio risk"
+        text += "⚖️ Снизить риск портфеля"
     elif len(positions_data) < 4:
-        text += "📦 Improve diversification"
+        text += "📦 Добавить больше разных активов"
     else:
-        text += "🚀 Continue long-term investing"
+        text += "🚀 Продолжать долгосрочное инвестирование"
     return text
