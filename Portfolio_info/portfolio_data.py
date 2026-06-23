@@ -32,9 +32,6 @@ async def load_portfolio_data(portfolio_id):
     positions = positions or []
     if not isinstance(positions, list):
         positions = []
-    print("LOAD DATA DEBUG:")
-    print("portfolio_id:", portfolio_id)
-    print("positions_count:", len(positions))
     if not positions:
         return {
             "portfolio": portfolio,
@@ -57,7 +54,7 @@ async def load_portfolio_data(portfolio_id):
     asyncio.create_task(
     AnalyticsService.track_event(
         user_id=0,
-        event_name="portfolio_load",
+        event_name="portfolio.load",
         category="performance",
         duration_ms=duration,
         event_data={
