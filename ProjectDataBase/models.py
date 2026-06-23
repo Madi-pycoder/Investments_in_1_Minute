@@ -1,9 +1,9 @@
 from datetime import datetime, date
+from config import DATABASE_URL
 from sqlalchemy import (BigInteger,DateTime,Date,String,Integer,Float,Boolean,ForeignKey,UniqueConstraint,Index,func,)
 from sqlalchemy.ext.asyncio import (create_async_engine,async_sessionmaker,AsyncAttrs,)
 from sqlalchemy.orm import (DeclarativeBase,mapped_column,Mapped,)
 from sqlalchemy.dialects.postgresql import JSONB
-DATABASE_URL = ("YOUR DATABSE_URL")
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
@@ -41,6 +41,7 @@ class Portfolio(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("owners.id"),index=True)
     cash: Mapped[float] = mapped_column(Float)
+    total_value: Mapped[float] = mapped_column(Float, default=0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(),
         onupdate=func.now(), index=True)
