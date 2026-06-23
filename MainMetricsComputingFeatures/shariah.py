@@ -1,7 +1,9 @@
+import time
 from datetime import datetime, timezone
 from ProjectDataBase.cache import ETF_CACHE, get_cached, set_cached, ETF_CACHE_TTL
 from MarketFeatures.market import get_stocks_batch
-
+import math
+import traceback
 FORBIDDEN_KEYWORDS = [
     "bank",
     "credit",
@@ -45,21 +47,31 @@ STANDARD_CONFIG = {
         "denominator": "total_assets"}}
 BUFFER = 0.02
 WEIGHTS = {
-    "business": 3,
-    "debt": 2,
-    "interest": 2,
-    "cash": 1.5,
-    "receivables": 1.5,
-    "data_quality": 1}
+    "market_cap": 2,
+    "revenue": 2,
+    "total_debt": 2,
+    "total_cash": 1,
+    "receivables": 1,
+    "interest_income": 0}
 
-def build_ratio_check(
-    name,
-    numerator_value,
-    denominator_value,
-    numerator_field,
-    denominator_field,
-    limit,
-    formula):
+def clean_number(value):
+    if value is None:
+        return None
+    try:
+        value = float(value)
+        if math.isnan(value):
+            return None
+        if math.isinf(value):
+            return None
+        return value
+    except Exception as e:
+        traceback.print_exc()
+        return {"error": str(e)}
+
+def build_ratio_check(name, numerator_value, denominator_value,
+    numerator_field, denominator_field, limit, formula):
+    numerator_value = clean_number(numerator_value)
+    denominator_value = clean_number(denominator_value)
     missing_fields = []
     if numerator_value is None:
         missing_fields.append(numerator_field)
@@ -70,17 +82,17 @@ def build_ratio_check(
     else:
         ratio = numerator_value / denominator_value
     if ratio is None:
-        status = "neutral"
-        message = "Missing financial data"
+        status = "нейтральный"
+        message = "Недостаточно данных для проверки"
     elif ratio <= limit:
-        status = "pass"
-        message = f"{ratio:.2%} within limit"
+        status = "соответствует"
+        message = f"{ratio:.2%} - В пределах нормы"
     elif ratio <= limit + BUFFER:
-        status = "borderline"
-        message = f"{ratio:.2%} near limit"
+        status = "на грани"
+        message = f"{ratio:.2%} - Близко к допустимому пределу"
     else:
-        status = "fail"
-        message = f"{ratio:.2%} exceeds limit"
+        status = "не соответствует"
+        message = f"{ratio:.2%} - Превышает допустимый предел"
     return {
         "name": name,
         "status": status,
@@ -101,16 +113,16 @@ def calculate_data_freshness(stock):
     updated_at = stock.get("financials_updated_at")
     if not updated_at:
         return {
-            "status": "stale",
+            "status": "Данные устарели",
             "days_old": None}
     now = datetime.now(timezone.utc)
     days_old = (now - updated_at).days
     if days_old <= 90:
-        status = "fresh"
+        status = "Актуальные данные"
     elif days_old <= 180:
-        status = "aging"
+        status = "Данные устаревают"
     else:
-        status = "stale"
+        status = "Данные устарели"
     return {
         "status": status,
         "days_old": days_old}
@@ -129,18 +141,18 @@ def check_business(industry, sector):
     for keyword in FORBIDDEN_KEYWORDS:
         if keyword in text:
             return {
-                "status": "fail",
-                "message": f"Forbidden industry: {keyword}",
+                "status": "не соответствует",
+                "message": f"Запрещённая сфера деятельности: {keyword}",
                 "matched_keyword": keyword}
     for keyword in QUESTIONABLE_KEYWORDS:
         if keyword in text:
             return {
-                "status": "borderline",
-                "message": f"Questionable industry: {keyword}",
+                "status": "на грани",
+                "message": f"Сомнительная сфера деятельности: {keyword}",
                 "matched_keyword": keyword}
     return {
-        "status": "pass",
-        "message": "Business activity appears compliant",
+        "status": "соответствует",
+        "message": "Сфера деятельности соответствует Шариату",
         "matched_keyword": None}
 
 def calculate_purification(dividends, interest_ratio, position_value=None):
@@ -178,13 +190,13 @@ def calculate_score(results):
     score = 0
     for key, weight in WEIGHTS.items():
         value = results.get(key)
-        if value == "pass":
+        if value == "соответствует":
             score += weight
-        elif value == "borderline":
+        elif value == "на грани":
             score += weight * 0.5
-        elif value == "neutral":
+        elif value == "нейтральный":
             score += 0
-        elif value == "fail":
+        elif value == "не соответствует":
             score -= weight * 0.5
     percent = int((score / total_weight) * 100)
     return percent
@@ -208,59 +220,72 @@ async def shariah_screen(stock, standard="AAOIFI"):
     ticker = (stock.get("ticker") or "").upper()
     if ticker in FORCED_HARAM:
         return {
-            "status": "NOT HALAL ❌",
+            "status": "НЕ СООТВЕТСТВУЕТ ❌",
             "audit": {
                 "standard": standard,
                 "business": {
-                    "status": "fail",
-                    "message": "Known non-Shariah asset"
-                },
+                    "status": "не соответствует",
+                    "message": "Этот актив не проходит критерии"},
                 "checks": [],
                 "freshness": {
-                    "status": "fresh",
-                    "days_old": 0
-                },
-                "missing_fields": []
-            },
-            "confidence": 100
-        }
-    interest_income = stock.get("interest_income")
-    if interest_income is None:
-        total_cash = stock.get("total_cash")
-        if total_cash is not None:
-            interest_income = total_cash * 0.03
+                    "status": "Актуальные данные",
+                    "days_old": 0},
+                "missing_fields": []},
+            "confidence": 100}
+    interest_income = clean_number(stock.get("interest_income"))
+    if interest_income is None or math.isnan(interest_income):
+        interest_check = {
+            "name": "Доход от процентов",
+            "status": "нейтральный",
+            "value": None,
+            "limit": config["interest_limit"],
+            "formula": "доход от процентов / выручка",
+            "message": "Недостаточно данных",
+            "missing_fields": ["interest_income"]}
+    else:
+        interest_check = build_ratio_check(
+            name="Доход от процентов",
+            numerator_value=interest_income,
+            denominator_value=stock.get("revenue"),
+            numerator_field="interest_income",
+            denominator_field="revenue",
+            limit=config["interest_limit"],
+            formula="доход от процентов / выручка")
     debt_check = build_ratio_check(
-        name="Debt Ratio",
+        name="Долговая нагрузка",
         numerator_value=stock.get("total_debt"),
         denominator_value=denominator_value,
         numerator_field="total_debt",
         denominator_field=denominator_field,
         limit=config["debt_limit"],
-        formula=f"total_debt / {denominator_field}")
+        formula=f"общий долг / {denominator_field}")
     cash_check = build_ratio_check(
-        name="Cash Ratio",
+        name="Денежные резервы",
         numerator_value=stock.get("total_cash"),
         denominator_value=denominator_value,
         numerator_field="total_cash",
         denominator_field=denominator_field,
         limit=config["cash_limit"],
-        formula=f"total_cash / {denominator_field}")
-    receivables_check = build_ratio_check(
-        name="Receivables Ratio",
-        numerator_value=stock.get("receivables"),
-        denominator_value=denominator_value,
-        numerator_field="receivables",
-        denominator_field=denominator_field,
-        limit=config["receivables_limit"],
-        formula=f"receivables / {denominator_field}")
-    interest_check = build_ratio_check(
-        name="Interest Income Ratio",
-        numerator_value=interest_income,
-        denominator_value=stock.get("revenue"),
-        numerator_field="interest_income",
-        denominator_field="revenue",
-        limit=config["interest_limit"],
-        formula="interest_income / revenue")
+        formula=f"все денежные средства / {denominator_field}")
+    receivables_value = stock.get("receivables")
+    if receivables_value is None:
+        receivables_check = {
+            "name": "Задолженность клиентов",
+            "status": "соответствует",
+            "value": None,
+            "limit": config["receivables_limit"],
+            "formula": f"задолженность / {denominator_field}",
+            "message": "Недостаточно данных, использована безопасная оценка",
+            "missing_fields": ["receivables"]}
+    else:
+        receivables_check = build_ratio_check(
+            name="Задолженность клиентов",
+            numerator_value=stock.get("receivables"),
+            denominator_value=denominator_value,
+            numerator_field="receivables",
+            denominator_field=denominator_field,
+            limit=config["receivables_limit"],
+            formula=f"задолженность / {denominator_field}")
     checks = [
         debt_check,
         cash_check,
@@ -271,18 +296,18 @@ async def shariah_screen(stock, standard="AAOIFI"):
         missing_fields.extend(check["missing_fields"])
     freshness = calculate_data_freshness(stock)
     statuses = [x["status"] for x in checks]
-    if business_check["status"] == "fail":
-        overall_status = "NOT HALAL ❌"
-    elif "fail" in statuses:
-        overall_status = "NOT HALAL ❌"
-    elif statuses.count("borderline") >= 2:
-        overall_status = "MIXED ⚠️"
-    elif "borderline" in statuses:
-        overall_status = "MOSTLY HALAL ⚠️"
+    if business_check["status"] == "не соответствует":
+        overall_status = "НЕ СООТВЕТСТВУЕТ ❌"
+    elif "не соответствует" in statuses:
+        overall_status = "НЕ СООТВЕТСТВУЕТ ❌"
+    elif statuses.count("на грани") >= 2:
+        overall_status = "Нужна дополнительная проверка ⚠️"
+    elif "на грани" in statuses:
+        overall_status = "Скорее соответствует Шариату ⚠️"
     else:
-        overall_status = "HALAL ✅"
+        overall_status = "СООТВЕТСТВУЕТ ШАРИАТУ ✅"
     data_quality = calculate_data_quality(stock)
-    borderline_count = statuses.count("borderline")
+    borderline_count = statuses.count("на грани")
     confidence = calculate_confidence(
         data_quality,
         borderline_count)
@@ -310,7 +335,7 @@ async def calculate_portfolio_purification(positions, stocks_data):
         screening = await shariah_screen(stock)
         interest_ratio = None
         for check in screening["audit"]["checks"]:
-            if check["name"] == "Interest Income Ratio":
+            if check["name"] == "Доход от процентов":
                 interest_ratio = check["value"]
                 break
         purification = calculate_purification(
@@ -327,44 +352,45 @@ async def calculate_portfolio_purification(positions, stocks_data):
         "breakdown": breakdown}
 
 def determine_status(results, score):
-    if results["business"] == "fail":
-        return "NOT HALAL ❌"
+    if results["business"] == "не соответствует":
+        return "НЕ СООТВЕТСТВУЕТ ❌"
     if score >= 80:
-        return "HALAL ✅"
+        return "СООТВЕТСТВУЕТ ШАРИАТУ ✅"
     if score >= 60:
-        return "MOSTLY HALAL ⚠️"
+        return "Скорее соответствует Шариату ⚠️️"
     if score >= 40:
-        return "MIXED ⚠️"
-    return "NOT HALAL ❌"
+        return "Нужна дополнительная проверка ⚠️"
+    return "НЕ СООТВЕТСТВУЕТ ❌"
 
 
-SHARIAH_ETFS = {"SPUS", "HLAL", "SPRE", "SPSK", "UMMA", "SPTE", "SPWO", "ISDE"}
+SHARIAH_ETFS = {"SPUS", "HLAL", "SPRE", "SPSK", "UMMA", "SPTE", "SPWO", "ISDE", "GLD"}
 def calculate_stock_trust(screening):
     audit = screening["audit"]
     freshness = audit["freshness"]["status"]
     missing_count = len(audit["missing_fields"])
     confidence = screening.get("confidence", 50)
     trust = confidence / 100
-    if freshness == "aging":
+    if freshness == "Данные устаревают":
         trust *= 0.85
-    if freshness == "stale":
+    if freshness == "Данные устарели":
         trust *= 0.6
     trust *= max(0.4, 1 - (missing_count * 0.1))
-    if screening["status"] == "MIXED ⚠️":
+    if screening["status"] == "Нужна дополнительная проверка ⚠️":
         trust *= 0.7
-    if screening["status"] == "NOT HALAL ❌":
+    if screening["status"] == "НЕ СООТВЕТСТВУЕТ ❌":
         trust *= 0.2
     return round(trust, 2)
 
 async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
     key = etf_ticker.upper()
+    start = time.perf_counter()
     cached = get_cached(ETF_CACHE, key, ETF_CACHE_TTL)
     if cached:
         return cached
     holdings = await get_etf_holdings(etf_ticker)
     if holdings is None or len(holdings) == 0:
         return {
-            "status": "UNKNOWN ⚠️",
+            "status": "НЕДОСТАТОЧНО ДАННЫХ ⚠️",
             "score": 0,
             "halal_percent": 0,
             "trust_score": 0,
@@ -373,10 +399,10 @@ async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
             "haram_stocks": 0,
             "total_analyzed": 0,
             "covered_percent": 0,
-            "reason": "No holdings data"}
+            "reason": "Не удалось получить состав ETF"}
     if key in SHARIAH_ETFS:
         return {
-            "status": "HALAL ✅",
+            "status": "СООТВЕТСТВУЕТ ШАРИАТУ ✅",
             "score": 100,
             "halal_percent": 100,
             "trust_score": 95,
@@ -385,22 +411,22 @@ async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
             "haram_stocks": 0,
             "total_analyzed": None,
             "covered_percent": 100,
-            "note": "Pre-screened Shariah ETF"}
+            "note": "ETF уже прошёл критерии"}
     holdings = sorted(holdings, key=lambda x: x["weight"], reverse=True)
     filtered = []
     covered = 0
     for h in holdings:
-        if covered >= 0.90 or len(filtered) >= 100:
+        if covered >= 0.90 or len(filtered) >= 30:
             break
         filtered.append(h)
         covered += h["weight"]
     holdings = filtered
     tickers = [h["ticker"] for h in holdings]
     STATUS_WEIGHTS = {
-        "HALAL ✅": 1.0,
-        "MOSTLY HALAL ⚠️": 0.7,
-        "MIXED ⚠️": 0.4,
-        "NOT HALAL ❌": 0}
+        "СООТВЕТСТВУЕТ ШАРИАТУ ✅": 1.0,
+        "Скорее соответствует Шариату ⚠️": 0.7,
+        "Нужна дополнительная проверка ⚠️": 0.4,
+        "НЕ СООТВЕТСТВУЕТ ❌": 0}
     covered_weight = 0
     halal_weight = 0
     total_weight = 0
@@ -422,7 +448,7 @@ async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
         covered_weight += weight
         total_weight += weight
         halal_weight += effective_weight
-        if stock_status in ["HALAL ✅", "MOSTLY HALAL ⚠️"]:
+        if stock_status in ["СООТВЕТСТВУЕТ ШАРИАТУ ✅", "Скорее соответствует Шариату ⚠️"]:
             halal_count += 1
         else:
             haram_count += 1
@@ -434,7 +460,7 @@ async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
             "effective_weight": effective_weight})
     if total_weight == 0:
         return {
-            "status": "UNKNOWN ⚠️",
+            "status": "НЕДОСТАТОЧНО ДАННЫХ ⚠️",
             "score": 0,
             "halal_percent": 0,
             "trust_score": 0,
@@ -443,17 +469,16 @@ async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
             "haram_stocks": haram_count,
             "total_analyzed": 0,
             "covered_percent": 0,
-            "reason": "Invalid holdings"}
+            "reason": "Некорректные данные по составу ETF"}
     halal_percent = round((halal_weight / total_weight) * 100, 2)
     if halal_percent >= 95:
-        status = "HALAL ✅"
+        status = "СООТВЕТСТВУЕТ ШАРИАТУ ✅"
     elif halal_percent >= 80:
-        status = "MOSTLY HALAL ⚠️"
+        status = "Скорее соответствует Шариату ⚠️"
     elif halal_percent >= 50:
-        status = "MIXED ⚠️"
+        status = "Нужна дополнительная проверка ⚠️"
     else:
-        status = "NOT HALAL ❌"
-
+        status = "НЕ СООТВЕТСТВУЕТ ❌"
     result = {
         "status": status,
         "score": int(halal_percent),
@@ -466,6 +491,7 @@ async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
         "total_analyzed": len(trust_breakdown),
         "covered_percent": round(covered_weight * 100, 2),}
     set_cached(ETF_CACHE, key, result)
+    print("ETF INFO-Shariah:", time.perf_counter() - start)
     return result
 
 
@@ -475,7 +501,7 @@ def calculate_shariah_status(positions_data):
         for p in positions_data
         if p.get("shariah_compliant") is False]
     if not haram_assets:
-        return "Compliant ✅"
+        return "Портфель соответствует Шариату ✅"
     if len(haram_assets) == 1:
-        return f"Mixed ⚠️ ({haram_assets[0]})"
-    return f"Mixed ⚠️ ({len(haram_assets)} assets)"
+        return f"Есть спорные активы ⚠️️ ({haram_assets[0]})"
+    return f"Есть спорные активы ⚠️ ({len(haram_assets)} шт.)"
