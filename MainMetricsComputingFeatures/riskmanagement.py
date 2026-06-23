@@ -3,7 +3,7 @@ import time
 import numpy as np
 import pandas as pd
 from ProjectDataBase.cache import (hist_cache, RETURNS_CACHE, get_cached, set_cached,
-                                   PORTFOLIO_VOL_CACHE, RISK_METRICS_CACHE, RISK_METRICS_TTL)
+    PORTFOLIO_VOL_CACHE, RISK_METRICS_CACHE, RISK_METRICS_TTL)
 from ProjectDataBase.market_data_service import calculate_volatility_cached, calculate_drawdown_cached
 from sqlalchemy import select
 from ProjectDataBase.models import HistoricalPrice, async_session
@@ -138,12 +138,15 @@ def calculate_risk_score(volatility, drawdown, beta, sharpe):
     return max(min(score, 100), 0)
 
 async def calculate_etf_risk(ticker: str):
-    vol = await calculate_volatility_cached(ticker)
-    dd = await calculate_drawdown_cached(ticker)
-    beta = await calculate_beta(ticker)
-    sharpe = await calculate_sharpe_ratio(ticker)
+    start = time.perf_counter()
+    vol, dd, beta, sharpe = await asyncio.gather(
+        calculate_volatility_cached(ticker),
+        calculate_drawdown_cached(ticker),
+        calculate_beta(ticker),
+        calculate_sharpe_ratio(ticker))
     risk_score = calculate_risk_score(vol, dd, beta, sharpe)
     risk_label = get_risk_label(risk_score)
+    print("ETF INFO-Risk:", time.perf_counter() - start)
     return {
         "volatility": vol,
         "drawdown": dd,
@@ -170,12 +173,12 @@ def get_risk_label(score):
     if score is None:
         return "Unknown"
     if score >= 80:
-        return "LOW RISK 🟢"
+        return "Низкий Риск 🟢"
     if score >= 60:
-        return "MODERATE RISK 🟡"
+        return "Средний Риск 🟡"
     if score >= 40:
-        return "HIGH RISK 🟠"
-    return "VERY HIGH RISK 🔴"
+        return "Высокий Риск 🟠"
+    return "Очень Высокий Риск 🔴"
 
 async def calculate_portfolio_volatility(positions):
     if not positions:
@@ -230,12 +233,12 @@ def calculate_concentration_risk(positions):
         return None
     max_weight = max(p["weight"] for p in positions)
     if max_weight > 0.5:
-        return "EXTREME 🔴"
+        return "Слишком Крупная Доля 🔴"
     if max_weight > 0.35:
-        return "HIGH 🟠"
+        return "Большая Доля 🟠"
     if max_weight > 0.2:
-        return "MODERATE 🟡"
-    return "GOOD 🟢"
+        return "Умеренная Доля 🟡"
+    return "Хорошая Диверсификация 🟢"
 
 async def calculate_portfolio_risk(positions):
     if not positions:
@@ -271,11 +274,11 @@ def generate_risk_alerts(risk):
     if not risk:
         return alerts
     if risk["volatility"] and risk["volatility"] > 30:
-        alerts.append("⚠️ Portfolio volatility is very high")
+        alerts.append("⚠️ Портфель сильно колеблется")
     if risk.get("diversification", 0) < 40:
-        alerts.append("⚠️ Portfolio poorly diversified")
-    if risk["concentration"] in ["HIGH 🟠", "EXTREME 🔴"]:
-        alerts.append("⚠️ Portfolio concentration risk")
+        alerts.append("⚠️ Активы недостаточно диверсифицированы")
+    if risk["concentration"] in ["Большая Доля 🟠", "Слишком Крупная Доля 🔴"]:
+        alerts.append("⚠️ Слишком большая доля вложена в один актив")
     return alerts
 
 async def calculate_optimal_weights(positions, turnover_penalty=TURNOVER_PENALTY):
@@ -415,11 +418,11 @@ def stress_test_portfolio(positions):
     if not positions:
         return None
     scenarios = {
-        "2008 Crisis": -0.50,
-        "Dotcom Crash": -0.45,
-        "COVID Crash": -0.35,
-        "Inflation Shock": -0.25,
-        "Mild Correction": -0.10}
+        "Кризис 2008 года": -0.50,
+        "Крах доткомов": -0.45,
+        "Падние рынка во время COVID-19": -0.35,
+        "Шокирующая инфляция": -0.25,
+        "Небольшая коррекция рынка": -0.10}
     results = {}
     for name, shock in scenarios.items():
         portfolio_loss = 0
