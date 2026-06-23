@@ -1,14 +1,17 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from yahooquery import Ticker
 from ProjectDataBase.cache import (FX_CACHE, STOCKS_CACHE,
-                                   STOCK_INFO_CACHE, STOCK_INFO_TTL, get_cached, set_cached)
+    STOCK_INFO_CACHE, STOCK_INFO_TTL, get_cached, set_cached)
+from ProjectDataBase.market_data_worker import get_first_existing, find_interest_income
 from ProjectDataBase.models import async_session, StockFundamentals
 from sqlalchemy import select
 import yfinance as yf
 import requests
 import pandas as pd
 import asyncio
+import math
+import traceback
 
 SP500_TOP = [
     "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META",
@@ -20,6 +23,20 @@ NASDAQ_PROXY = [
     "NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "GOOGL", "META",
     "AVGO", "WMT", "MU", "TMUS", "LRCX", "AMD", "NFLX",
     "CMCSA", "QCOM", "INTU"]
+def clean_number(value):
+    if value is None:
+        return None
+    try:
+        value = float(value)
+        if math.isnan(value):
+            return None
+        if math.isinf(value):
+            return None
+        return value
+    except Exception:
+        return None
+
+
 def safe_close(hist):
     if hist is None or hist.empty:
         return None
@@ -28,6 +45,12 @@ def safe_close(hist):
 async def run_blocking(func, *args):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, lambda: func(*args))
+
+def last_valid_close(hist):
+    try:
+        return float(hist["Close"].dropna().iloc[-1])
+    except:
+        return None
 
 async def get_prices_only(tickers):
     data = await asyncio.to_thread(
@@ -98,6 +121,59 @@ async def get_fx_rate(from_currency, to_currency="USD"):
         return 1.0
 
 
+
+async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
+    async with async_session() as session:
+        row = await session.scalar(
+            select(StockFundamentals)
+            .where(StockFundamentals.ticker == ticker))
+        if row and not force_refresh:
+            return row
+        print(f"[AUTO LOAD] {ticker}")
+        stock = yf.Ticker(ticker)
+        bs = await asyncio.to_thread(lambda: stock.balance_sheet)
+        income = await asyncio.to_thread(lambda: stock.income_stmt)
+        total_debt = get_first_existing(bs, ["Total Debt", "Current Debt",
+            "Long Term Debt"])
+        total_cash = get_first_existing(bs, ["Cash And Cash Equivalents",
+            "Cash", "Cash Cash Equivalents And Short Term Investments"])
+        total_assets = get_first_existing(bs, ["Total Assets"])
+        receivables = get_first_existing(bs, ["Net Receivables",
+            "Accounts Receivable", "Accounts Receivables"])
+        revenue = get_first_existing(income, ["Total Revenue",
+            "Operating Revenue", "Revenue"])
+        interest_income = find_interest_income(income)
+        modules = await asyncio.to_thread(
+            lambda: Ticker(ticker).get_modules([
+                "assetProfile",
+                "financialData",
+                "quoteType"])) or {}
+        data = modules.get(ticker, {})
+        profile = data.get("assetProfile", {})
+        financial = data.get("financialData", {})
+        quote = data.get("quoteType", {})
+        row = StockFundamentals(
+            ticker=ticker,
+            sector=profile.get("sector"),
+            industry=profile.get("industry"),
+            market_cap=financial.get("marketCap"),
+            quote_type=quote.get("quoteType"),
+            total_debt=total_debt,
+            total_cash=total_cash,
+            total_assets=total_assets,
+            receivables=receivables,
+            revenue=revenue,
+            interest_income=interest_income,
+            updated_at=datetime.now(timezone.utc))
+        session.add(row)
+        await session.commit()
+        return row
+
+
+
+
+
+
 async def get_stock_info(ticker: str):
     ticker = ticker.upper()
     cached = get_cached(STOCK_INFO_CACHE, ticker, STOCK_INFO_TTL)
@@ -107,24 +183,27 @@ async def get_stock_info(ticker: str):
         print(f"FETCHING {ticker}")
         stock = yf.Ticker(ticker)
         hist = await asyncio.to_thread(stock.history, period="5y")
+        if hist is None or hist.empty:
+            return {"error": f"❌ Тикер {ticker} не найден"}
         print(hist.tail())
         print("EMPTY:", hist.empty)
         price = None
         if hist is not None and not hist.empty:
-            price = hist["Close"].iloc[-1]
+            price = last_valid_close(hist)
         if price is None:
             price = get_price_fallback(ticker)
         if price is None:
-            return {"error": "Price unavailable"}
+            return {"error": "Не удалось получить цену актива"}
         close = safe_close(hist)
         if close is None:
-            return {"error": "No historical data"}
+            return {"error": "Недостаточно исторических данных"}
         def pct(period):
             try:
                 if len(hist) <= period:
                     return None
-                current = hist["Close"].iloc[-1]
-                past = hist["Close"].iloc[-(period+1)]
+                close_series = hist["Close"].dropna()
+                current = close_series.iloc[-1]
+                past = close_series.iloc[-(period+1)]
                 return round((current - past)/past * 100, 2)
             except Exception as e:
                 print("ERROR:", e)
@@ -156,6 +235,14 @@ async def get_stock_info(ticker: str):
             fundamentals = await session.scalar(
                 select(StockFundamentals)
                 .where(StockFundamentals.ticker == ticker))
+            if fundamentals is None:
+                fundamentals = await ensure_fundamentals_exist(ticker, force_refresh=True)
+            need_refresh = (
+                fundamentals is None or fundamentals.updated_at is None
+                or (datetime.now(timezone.utc) - fundamentals.updated_at)
+                > timedelta(days=30))
+            if need_refresh:
+                fundamentals = await ensure_fundamentals_exist(ticker, force_refresh=True)
             receivables = (
                 fundamentals.receivables
                 if fundamentals else None)
@@ -174,6 +261,9 @@ async def get_stock_info(ticker: str):
             interest_income = (
                 fundamentals.interest_income
                 if fundamentals else None)
+            financials_updated_at = (
+                fundamentals.updated_at
+                if fundamentals else None)
         if isinstance(ed, list):
             ed = ed[0]
         dte = financial.get("debtToEquity")
@@ -182,35 +272,42 @@ async def get_stock_info(ticker: str):
                 or price_data.get("marketCap")
                 or stats.get("marketCap")
                 or stock.fast_info.get("market_cap"))
+        if market_cap is None:
+            market_cap = fundamentals.market_cap
         print("MARKET CAP:", market_cap)
         print("TOTAL CASH:", total_cash)
         print("TOTAL DEBT:", total_debt)
         print("CURRENCY:", price_data.get("currency"))
         print("FINANCIAL CURRENCY:", financial.get("financialCurrency"))
+        print("DB INTEREST:", interest_income)
+        print("DB REVENUE:", revenue)
         result = {
             "name": price_data.get("shortName"),
             "ticker": ticker.upper(),
             "debt_to_equity": dte / 100 if dte else None,
             "pe": summary.get("trailingPE"),
             "eps": summary.get("trailingEps"),
-            "market_cap": market_cap,
+            "market_cap": clean_number(financial.get("marketCap")
+                or price_data.get("marketCap")
+                or stats.get("marketCap")),
             "industry": profile.get("industry"),
             "sector": profile.get("sector"),
             "dividends": stats.get("dividendRate"),
             "earnings_date": ed,
             "price": float(price),
             "growth": growth,
-            "receivables": receivables,
-            "total_debt": total_debt,
-            "total_cash": total_cash,
-            "total_assets": total_assets,
-            "revenue": revenue,
-            "interest_income": interest_income,
-            "financials_updated_at": datetime.now(timezone.utc),
-            "ebitda": financial.get("ebitda")}
+            "receivables": clean_number(receivables),
+            "total_debt": clean_number(total_debt),
+            "total_cash": clean_number(total_cash),
+            "total_assets": clean_number(total_assets),
+            "revenue": clean_number(revenue),
+            "interest_income": clean_number(interest_income),
+            "financials_updated_at": financials_updated_at,
+            "ebitda": clean_number(financial.get("ebitda"))}
         set_cached(STOCK_INFO_CACHE, ticker, result)
         return result
     except Exception as e:
+        traceback.print_exc()
         return {"error": str(e)}
 
 async def get_etf_info(ticker: str):
@@ -218,14 +315,17 @@ async def get_etf_info(ticker: str):
         etf = yf.Ticker(ticker)
         hist = await asyncio.to_thread(etf.history, period="5y")
         if hist is None or hist.empty:
-            return {"error": "No market data"}
+            return {
+                "error": f"❌ Тикер {ticker} не найден"}
+        if hist is None or hist.empty:
+            return {"error": "Не удалось получить рыночные данные"}
         price = None
         if hist is not None and not hist.empty:
-            price = hist["Close"].iloc[-1]
+            price = last_valid_close(hist)
         if price is None:
             price = get_price_fallback(ticker)
         if price is None:
-            return {"error": "Price unavailable"}
+            return {"error": "Не удалось получить цену актива"}
         def pct(period):
             try:
                 return round(
@@ -252,8 +352,10 @@ async def get_etf_info(ticker: str):
         fund = data.get("fundProfile", {})
         summary = data.get("summaryDetail", {})
         stats = data.get("defaultKeyStatistics", {})
+        price_data = data.get("price", {})
+        name = (fund.get("shortName") or price_data.get("shortName") or ticker)
         return {
-            "name": fund.get("shortName"),
+            "name": name,
             "ticker": ticker.upper(),
             "nav": stats.get("navPrice"),
             "net_assets": stats.get("totalAssets"),
@@ -262,6 +364,7 @@ async def get_etf_info(ticker: str):
             "price": float(price),
             "growth": growth}
     except Exception as e:
+        traceback.print_exc()
         return {"error": str(e)}
 
 
@@ -274,30 +377,30 @@ async def fetch_chunk(chunk, retries=3):
                  "financialData",
                  "defaultKeyStatistics"])) or {}
             result = {}
+            async with async_session() as session:
+                fundamentals_rows = await session.scalars(
+                    select(StockFundamentals)
+                    .where(StockFundamentals.ticker.in_(chunk)))
+                fundamentals_map = {
+                    row.ticker.upper(): row
+                    for row in fundamentals_rows}
             for ticker in chunk:
                 data = modules.get(ticker, {}) or {}
                 profile = data.get("assetProfile", {})
                 financial = data.get("financialData", {})
                 stats = data.get("defaultKeyStatistics", {})
-                try:
-                    bs = yf.Ticker(ticker).balance_sheet
-                    receivables = (
-                        bs.loc["Net Receivables"].iloc[0]
-                        if "Net Receivables" in bs.index
-                        else None)
-                except Exception:
-                    receivables = None
+                db_row = fundamentals_map.get(ticker.upper())
                 result[ticker] = {
                     "industry": profile.get("industry"),
                     "sector": profile.get("sector"),
                     "market_cap": financial.get("marketCap") or stats.get("marketCap"),
-                    "total_assets": financial.get("totalAssets"),
-                    "total_debt": financial.get("totalDebt"),
-                    "total_cash": financial.get("totalCash"),
-                    "receivables": receivables,
-                    "revenue": financial.get("totalRevenue"),
-                    "interest_income": financial.get("interestIncome"),
-                    "dividends": financial.get("dividendYield"),}
+                    "revenue": db_row.revenue if db_row else None,
+                    "interest_income": db_row.interest_income if db_row else None,
+                    "total_debt": db_row.total_debt if db_row else None,
+                    "total_cash": db_row.total_cash if db_row else None,
+                    "total_assets": db_row.total_assets if db_row else None,
+                    "receivables": db_row.receivables if db_row else None,
+                    "dividends": financial.get("dividendYield")}
             STOCKS_CACHE.update(result)
             return result
         except Exception as e:
