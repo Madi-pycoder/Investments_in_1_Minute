@@ -2,10 +2,10 @@ import asyncio
 from datetime import datetime, timezone
 import random
 import yfinance as yf
+import pandas as pd
 from sqlalchemy import select
 from ProjectDataBase.models import (async_session, Position, MarketPrice,
-                                    HistoricalPrice,
-                                    StockFundamentals)
+    HistoricalPrice, StockFundamentals)
 from yahooquery import Ticker
 
 UPDATE_INTERVAL = 900
@@ -15,6 +15,32 @@ async def get_all_tickers():
         result = await session.scalars(
             select(Position.ticker).distinct())
         return result.all()
+
+
+def find_interest_income(income):
+    if income is None or income.empty:
+        return None
+    keywords = [
+        "interest income",
+        "interest income non operating",
+        "net interest income",
+        "interest and investment income",
+        "investment income",
+        "interest and dividend income"]
+    for idx in income.index:
+        row_name = str(idx).lower()
+        if not any(k in row_name for k in keywords):
+            continue
+        try:
+            row = income.loc[idx]
+            row = pd.to_numeric(row, errors="coerce")
+            row = row.dropna()
+            if row.empty:
+                continue
+            return float(row.iloc[0])
+        except Exception:
+            continue
+    return None
 
 async def update_market_price(ticker, session):
     try:
@@ -81,43 +107,41 @@ async def update_history(ticker):
         print(f"HISTORY ERROR {ticker}: {e}")
 
 
+
+def get_first_existing(df, keys):
+    if df is None or df.empty:
+        return None
+
+    for key in keys:
+        if key in df.index:
+            try:
+                return float(df.loc[key].iloc[0])
+            except:
+                pass
+
+    return None
+
+
 async def update_fundamentals(ticker, session):
     try:
         stock = yf.Ticker(ticker)
-        bs = await asyncio.to_thread(
-            lambda: stock.balance_sheet)
-        receivables = None
-        total_debt = None
-        total_cash = None
-        total_assets = None
-        if bs is not None and not bs.empty:
-            for key in ["Net Receivables",
-                "Accounts Receivable"]:
-                if key in bs.index:
-                    try:
-                        receivables = float(bs.loc[key].iloc[0])
-                        break
-                    except Exception:
-                        pass
-            if "Total Debt" in bs.index:
-                try:
-                    total_debt = float(bs.loc["Total Debt"].iloc[0])
-                except Exception:
-                    pass
-            for key in [
-                "Cash And Cash Equivalents",
-                "Cash Cash Equivalents And Short Term Investments"]:
-                if key in bs.index:
-                    try:
-                        total_cash = float(bs.loc[key].iloc[0])
-                        break
-                    except Exception:
-                        pass
-            if "Total Assets" in bs.index:
-                try:
-                    total_assets = float(bs.loc["Total Assets"].iloc[0])
-                except Exception:
-                    pass
+        bs = await asyncio.to_thread(lambda: stock.balance_sheet)
+        income = await asyncio.to_thread(lambda: stock.income_stmt)
+        total_debt = get_first_existing(bs, ["Total Debt",
+            "Current Debt", "Long Term Debt"])
+        total_cash = get_first_existing(bs, [
+            "Cash And Cash Equivalents", "Cash",
+            "Cash Cash Equivalents And Short Term Investments",])
+        total_assets = get_first_existing(bs, ["Total Assets"])
+        receivables = get_first_existing(bs, ["Net Receivables",
+            "Accounts Receivable", "Accounts Receivables",
+            "Receivable"])
+        revenue = get_first_existing(income, [
+            "Total Revenue", "Operating Revenue",
+            "Revenue"])
+        interest_income = find_interest_income(income)
+        if ticker == "AAPL":
+            print("INTEREST RESULT:", interest_income)
         modules = await asyncio.to_thread(
             lambda: Ticker(ticker).get_modules([
             "assetProfile",
@@ -138,8 +162,8 @@ async def update_fundamentals(ticker, session):
             "total_cash": total_cash,
             "total_assets": total_assets,
             "receivables": receivables,
-            "revenue": financial.get("totalRevenue"),
-            "interest_income": financial.get("interestIncome")}
+            "revenue": revenue,
+            "interest_income": interest_income,}
         if existing:
             existing.sector = payload["sector"]
             existing.industry = payload["industry"]
