@@ -3418,3 +3418,324 @@ FSM architecture upgraded from
 process memory
 →
 persistent distributed storage.
+
+
+
+
+
+
+
+Entry #64 — Production Infrastructure Migration via Docker Compose
+
+Date: 2026-06-24
+
+Problem
+
+The project depended on a manually configured local environment.
+
+Running the system required:
+
+manual PostgreSQL setup
+Redis installation
+worker startup order
+environment synchronization
+service dependency management
+
+Development and deployment environments could easily diverge.
+
+Infrastructure became one of the largest sources of debugging time.
+
+Root Cause
+
+Application architecture had matured beyond a single-process project,
+but infrastructure remained manually orchestrated.
+
+Each component worked correctly in isolation,
+yet starting the complete platform required extensive manual configuration.
+
+Solution
+
+1. Full Docker Compose Infrastructure
+
+Containerized the complete platform:
+
+Telegram Bot
+Market Worker
+PostgreSQL
+Redis
+
+2. Unified Service Networking
+
+All internal communication moved to Docker networking.
+
+Services now communicate through stable container names
+instead of machine-specific configuration.
+
+3. Automated Startup Dependencies
+
+Infrastructure now starts in the correct order,
+ensuring databases and cache layers become available
+before application services initialize.
+
+4. Reproducible Environment
+
+Entire production stack can now be recreated
+using a single command.
+
+Results
+
+Before:
+
+Environment setup required
+significant manual configuration.
+
+Infrastructure bugs were difficult to reproduce.
+
+Deployment complexity increased with every new service.
+
+After:
+
+Entire platform starts automatically.
+
+Development and production environments
+share the same infrastructure definition.
+
+Deployment became deterministic and reproducible.
+
+Architectural Insight
+
+Application code should not depend on
+how a developer configures their computer.
+
+Infrastructure is part of the product.
+
+Containerization transforms environment configuration
+into version-controlled architecture.
+
+Status
+
+Infrastructure upgraded from
+
+manual local environment
+
+→(After approximately 25 hours of debugging)
+
+containerized production platform.
+
+
+
+
+
+
+
+
+
+Entry #65 — Probability Engine Refactor via Goal Classification
+
+Date: 2026-06-25
+
+Problem
+
+Goal probability calculations produced unrealistic investment expectations.
+
+Different financial goals were evaluated using
+the same generalized probability model,
+despite having fundamentally different characteristics.
+
+Result:
+
+Users received probability estimates
+that lacked consistency across goal types.
+
+Root Cause
+
+The probability engine treated all investment goals
+as a single category.
+
+Risk profile,
+investment horizon,
+and capital requirements
+were insufficiently differentiated.
+
+Solution
+
+1. Goal Classification Framework
+
+Separated financial goals into
+distinct probability categories.
+
+Each goal type now follows
+its own evaluation logic.
+
+2. Specialized Probability Models
+
+Probability calculations now account for:
+
+investment horizon
+expected return requirements
+contribution schedule
+capital accumulation dynamics
+
+3. Consistent Decision Logic
+
+Unified the evaluation framework,
+allowing different goals to produce
+internally consistent probability estimates.
+
+4. Improved Recommendation Layer
+
+Goal recommendations now align
+with realistic long-term investment behavior.
+
+Results
+
+Before:
+
+Different financial goals
+often received inconsistent probability estimates.
+
+Users could misinterpret investment feasibility.
+
+After:
+
+Probability estimates better reflect
+the characteristics of each objective.
+
+Recommendations became more predictable
+and easier to explain.
+
+Architectural Insight
+
+Financial planning is not a single optimization problem.
+
+Different objectives require
+different evaluation models.
+
+Separating business logic by goal type
+improves both realism
+and future extensibility.
+
+Status
+
+Goal engine upgraded from
+
+generic probability estimation
+
+→
+
+goal-aware probability architecture.
+
+
+
+
+
+
+
+
+
+
+Entry #66 — Global Currency Normalization Framework
+
+Date: 2026-06-26
+
+Problem
+
+Shariah screening produced incorrect financial ratios
+for companies reporting outside the United States.
+
+Debt,
+cash,
+revenue,
+and receivables
+could be stored in local currencies,
+while market capitalization was often reported in USD.
+
+This resulted in invalid ratio calculations
+for international issuers.
+
+Root Cause
+
+Financial metrics were assumed
+to share a common currency.
+
+In reality,
+different Yahoo Finance endpoints
+return values using different currency conventions.
+
+Without explicit normalization,
+financial ratios became unreliable.
+
+Solution
+
+1. Financial Currency Detection
+
+Introduced a dedicated financial currency layer.
+
+Each company now stores
+its reporting currency
+alongside financial statements.
+
+2. FX Conversion Pipeline
+
+Added automatic foreign exchange conversion
+before ratio calculations.
+
+Financial metrics are normalized
+into a common currency
+prior to analysis.
+
+3. Multi-Market Support
+
+Extended compatibility across
+international exchanges,
+including companies reporting in:
+
+TWD
+KRW
+EUR
+and other supported currencies
+
+4. Centralized Currency Logic
+
+Currency conversion became
+a dedicated infrastructure layer
+instead of being scattered
+throughout screening logic.
+
+Results
+
+Before:
+
+International companies could produce
+severely distorted Shariah ratios.
+
+Screening quality depended on
+reporting currency.
+
+After:
+
+Financial ratios remain consistent
+across supported markets.
+
+International Shariah screening
+became significantly more reliable.
+
+Architectural Insight
+
+Financial analysis should compare
+economic values,
+not currency units.
+
+Normalization belongs to the data layer,
+allowing screening logic
+to remain currency-independent.
+
+Status
+
+International screening upgraded from
+
+currency-dependent calculations
+
+→
+
+global normalized financial architecture.
