@@ -108,11 +108,8 @@ async def rebalance_now(callback: CallbackQuery, state: FSMContext):
     if not positions:
         await callback.message.answer(
         "📭 В портфеле пока нет активов.\n\n"
-        "Часто начинают с:\n"
-        "• MSFT - Microsoft\n"
-        "• AAPL - Apple\n"
-        "• NVDA - Nvidia\n"
-        "• TSLA - Tesla", reply_markup=kb.popular_stocks)
+        "Введите тикер компании\n\n"
+        "ИЛИ выберите готовую подборку 👇", reply_markup=kb.stock_categories)
         return
     tickers = [p.ticker for p in positions]
     stocks_batch = await get_stocks_batch(tickers)
@@ -246,11 +243,8 @@ async def goal_fix(callback: CallbackQuery, state: FSMContext):
     positions = data.get("positions") or []
     if not positions:
         await callback.message.answer("📭 В портфеле пока нет активов.\n\n"
-            "Для первых инвестиций часто выбирают:\n"
-            "• SPUS (исламский аналог S&P 500)\n"
-            "• HLAL (исламский диверсифицированный фонд США)\n"
-            "• AAPL - Apple\n"
-            "• NVDA - NVIDIA")
+            "Введите тикер компании\n\n"
+            "ИЛИ выберите готовую подборку 👇", reply_markup=kb.stock_categories)
         return
     if not metrics:
         await callback.message.answer(
@@ -288,11 +282,11 @@ async def goal_fix(callback: CallbackQuery, state: FSMContext):
     print(target_weights)
     portfolio_volatility = (metrics.get("risk", {}).get("volatility", 15))/100
     goal_analysis = simulate_multiple_goals(positions_data, total_value, goals,
-        portfolio_volatility)
+        portfolio_volatility, monthly_contribution=0)
     old_prob = metrics["goal_results"][0]["simulation"]["probability"]
     old_risk = metrics.get("portfolio_volatility")
     new_goal_analysis = simulate_multiple_goals(positions_data, total_value,
-        goals, best["risk"])
+        goals, portfolio_volatility, monthly_contribution=0)
     new_prob = new_goal_analysis[0]["simulation"]["probability"]
     new_risk = best["risk"] * 100
     print(target_weights)
