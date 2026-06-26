@@ -5,30 +5,68 @@ import pandas as pd
 from ProjectDataBase.cache import (hist_cache, RETURNS_CACHE, get_cached, set_cached,
     PORTFOLIO_VOL_CACHE, RISK_METRICS_CACHE, RISK_METRICS_TTL)
 from ProjectDataBase.market_data_service import calculate_volatility_cached, calculate_drawdown_cached
-from sqlalchemy import select
-from ProjectDataBase.models import HistoricalPrice, async_session
+from ProjectDataBase.models import async_session
 from scipy.optimize import minimize
+from sqlalchemy import text
 TURNOVER_PENALTY = 0.15
 MAX_WEIGHT = 0.40
 MIN_WEIGHT = 0.02
+HISTORY_INFLIGHT = {}
 async def get_history_df(ticker: str, days: int = 365):
+    ticker = ticker.upper()
+    if ticker in HISTORY_INFLIGHT:
+        return await HISTORY_INFLIGHT[ticker]
+    print(f"GET_HISTORY: {ticker}")
     cache_key = f"{ticker}_{days}"
     cached = hist_cache.get(cache_key)
     if cached:
+        print(f"CACHE HIT: {ticker}")
         ts, value = cached
         if time.time() - ts < 600:
+            print(
+                f"CACHE VALUE TYPE: {type(value)} "
+                f"EMPTY={getattr(value,'empty','NO_EMPTY_ATTR')}")
             return value
     async with async_session() as session:
-        result = await session.scalars(
-            select(HistoricalPrice).where(HistoricalPrice.ticker == ticker).order_by(HistoricalPrice.date))
-        rows = result.all()
+        result = await session.execute(text("SELECT current_database()"))
+        print("DB =", result.scalar())
+        result = await session.execute(
+            text("""
+                SELECT date, close
+                FROM historical_prices
+                WHERE ticker = :ticker
+                ORDER BY date
+            """),
+            {"ticker": ticker})
+        rows = result.fetchall()
+        print(f"TICKER REQUESTED = [{ticker}]")
+        print(f"ROWS = {len(rows)}")
+        if rows:
+            print("FIRST =", rows[0])
+            print("LAST =", rows[-1])
+        print("ROWS =", len(rows))
+        if rows:
+            print("FIRST =", rows[0])
+            print("LAST =", rows[-1])
+    print(f"ROWS FOR {ticker}: {len(rows)}")
     if not rows:
+        print(f"NO ROWS FOR {ticker}")
         return None
     data = {
         "Close": [r.close for r in rows if r.close is not None]}
+    print(f"CLOSE COUNT FOR {ticker}: {len(data['Close'])}")
     if len(data["Close"]) < 2:
+        print(f"LESS THAN 2 CLOSES FOR {ticker}")
         return None
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(
+        [{"Date": r.date,
+            "Close": r.close} for r in rows])
+    df["Date"] = pd.to_datetime(df["Date"])
+    df = df.set_index("Date")
+    df = df.sort_index()
+    print(
+        f"DF CREATED FOR {ticker}: "
+        f"shape={df.shape}, empty={df.empty}")
     hist_cache[cache_key] = (time.time(), df)
     return df
 
@@ -93,48 +131,59 @@ async def calculate_max_drawdown(ticker: str):
 
 async def calculate_beta(ticker: str):
     hist_stock = await get_history_df(ticker)
-    hist_market = await get_history_df("SPY")
+    hist_market = await get_history_df("VOO")
+    print("hist_stock =", type(hist_stock))
+    print("hist_market =", type(hist_market))
     if hist_stock is None or hist_market is None:
+        print(f"BETA FAILED {ticker}: no market history")
         return None
     returns_stock = hist_stock["Close"].pct_change().dropna()
     returns_market = hist_market["Close"].pct_change().dropna()
     df = pd.concat([returns_stock, returns_market], axis=1).dropna()
     if len(df) < 2:
+        print(f"BETA FAILED {ticker}: df len={len(df)}")
         return None
     df.columns = ["stock", "market"]
     covariance = df.cov().iloc[0, 1]
     market_var = df["market"].var()
     if market_var == 0:
+        print(f"BETA FAILED {ticker}: market variance=0")
         return None
     beta = covariance / market_var
     return round(float(beta), 2)
 
 def calculate_risk_score(volatility, drawdown, beta, sharpe):
-    if None in (volatility, drawdown, beta, sharpe):
+    missing = sum(x is None
+        for x in (volatility, drawdown, beta, sharpe))
+    if missing >= 2:
         return None
     score = 100
-    if volatility > 45:
-        score -= 25
-    elif volatility > 30:
-        score -= 15
-    elif volatility > 20:
-        score -= 5
-    if abs(drawdown) > 60:
-        score -= 25
-    elif abs(drawdown) > 40:
-        score -= 15
-    elif abs(drawdown) > 25:
-        score -= 5
-    if beta > 1.6:
-        score -= 15
-    elif beta > 1.3:
-        score -= 10
-    if sharpe > 2:
-        score += 10
-    elif sharpe > 1:
-        score += 5
-    elif sharpe < 0.5:
-        score -= 10
+    if volatility is not None:
+        if volatility > 45:
+            score -= 25
+        elif volatility > 30:
+            score -= 15
+        elif volatility > 20:
+            score -= 5
+    if drawdown is not None:
+        if abs(drawdown) > 60:
+            score -= 25
+        elif abs(drawdown) > 40:
+            score -= 15
+        elif abs(drawdown) > 25:
+            score -= 5
+    if beta is not None:
+        if beta > 1.6:
+            score -= 15
+        elif beta > 1.3:
+            score -= 10
+    if sharpe is not None:
+        if sharpe > 2:
+            score += 10
+        elif sharpe > 1:
+            score += 5
+        elif sharpe < 0.5:
+            score -= 10
     return max(min(score, 100), 0)
 
 async def calculate_etf_risk(ticker: str):
@@ -145,6 +194,10 @@ async def calculate_etf_risk(ticker: str):
         calculate_beta(ticker),
         calculate_sharpe_ratio(ticker))
     risk_score = calculate_risk_score(vol, dd, beta, sharpe)
+    if risk_score is None:
+        print(
+            f"RISK SCORE NONE | "
+            f"vol={vol}, dd={dd}, beta={beta}, sharpe={sharpe}")
     risk_label = get_risk_label(risk_score)
     print("ETF INFO-Risk:", time.perf_counter() - start)
     return {
@@ -185,10 +238,8 @@ async def calculate_portfolio_volatility(positions):
         return None
     cache_key = make_portfolio_cache_key(positions)
     cached = get_cached(PORTFOLIO_VOL_CACHE, cache_key, 300)
-    if cached:
-        ts, value = cached
-        if time.time() - ts < 300:
-            return value
+    if cached is not None:
+        return cached
     prices = {}
     weights = []
     for pos in positions:
@@ -444,6 +495,10 @@ async def get_risk_metrics_cached(ticker):
     beta = await calculate_beta(ticker)
     sharpe = await calculate_sharpe_ratio(ticker)
     risk_score = calculate_risk_score(vol, dd, beta, sharpe)
+    if risk_score is None:
+        print(
+            f"RISK SCORE NONE | "
+            f"vol={vol}, dd={dd}, beta={beta}, sharpe={sharpe}")
     risk_label = get_risk_label(risk_score)
     result = {
         "volatility": vol,
@@ -452,5 +507,12 @@ async def get_risk_metrics_cached(ticker):
         "sharpe": sharpe,
         "risk_score": risk_score,
         "risk_label": risk_label}
+    print(
+        f"RISK SCORE NONE | "
+        f"ticker={ticker} "
+        f"vol={vol} "
+        f"dd={dd} "
+        f"beta={beta} "
+        f"sharpe={sharpe}")
     set_cached(RISK_METRICS_CACHE, ticker, result)
     return result
