@@ -6,12 +6,24 @@ from ProjectDataBase.cache import (FX_CACHE, STOCKS_CACHE,
 from ProjectDataBase.market_data_worker import get_first_existing, find_interest_income
 from ProjectDataBase.models import async_session, StockFundamentals
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 import yfinance as yf
 import requests
 import pandas as pd
 import asyncio
 import math
 import traceback
+import logging
+
+logger = logging.getLogger("halal")
+logger.setLevel(logging.INFO)
+
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "[%(levelname)s] %(asctime)s %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 SP500_TOP = [
     "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META",
@@ -23,6 +35,11 @@ NASDAQ_PROXY = [
     "NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "GOOGL", "META",
     "AVGO", "WMT", "MU", "TMUS", "LRCX", "AMD", "NFLX",
     "CMCSA", "QCOM", "INTU"]
+KNOWN_FINANCIAL_CURRENCY = {
+    "TSM": "TWD",
+    "005930.KS": "KRW",
+    "2330.TW": "TWD",
+    "SSNLF": "KRW"}
 def clean_number(value):
     if value is None:
         return None
@@ -114,6 +131,11 @@ async def get_fx_rate(from_currency, to_currency="USD"):
         if hist is None or hist.empty:
             return 1.0
         rate = float(hist["Close"].iloc[-1])
+        logger.info(
+            "FX %s -> %s = %s",
+            from_currency,
+            to_currency,
+            rate)
         FX_CACHE[key] = rate
         return rate
     except Exception as e:
@@ -131,7 +153,9 @@ async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
             return row
         print(f"[AUTO LOAD] {ticker}")
         stock = yf.Ticker(ticker)
+        print("LOAD BS")
         bs = await asyncio.to_thread(lambda: stock.balance_sheet)
+        print("LOAD INCOME")
         income = await asyncio.to_thread(lambda: stock.income_stmt)
         total_debt = get_first_existing(bs, ["Total Debt", "Current Debt",
             "Long Term Debt"])
@@ -143,6 +167,7 @@ async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
         revenue = get_first_existing(income, ["Total Revenue",
             "Operating Revenue", "Revenue"])
         interest_income = find_interest_income(income)
+        print("LOAD MODULES")
         modules = await asyncio.to_thread(
             lambda: Ticker(ticker).get_modules([
                 "assetProfile",
@@ -151,23 +176,71 @@ async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
         data = modules.get(ticker, {})
         profile = data.get("assetProfile", {})
         financial = data.get("financialData", {})
+        stock = yf.Ticker(ticker)
+        fast = await asyncio.to_thread(lambda: stock.fast_info)
+        info = await asyncio.to_thread(lambda: stock.info)
+        financial_currency = (
+                financial.get("financialCurrency")
+                or info.get("financialCurrency")
+                or info.get("currency")
+                or fast.get("currency"))
+        financial_currency = KNOWN_FINANCIAL_CURRENCY.get(ticker,
+            financial_currency)
+        print("\n===== FUNDAMENTALS RAW =====")
+        print("Ticker:", ticker)
+        print("financial_currency:", financial_currency)
+
+        print("marketCap:", financial.get("marketCap"))
+
+        print("balance_sheet index:")
+        print(bs.index.tolist())
+
+        print("income_stmt index:")
+        print(income.index.tolist())
+
+        print("Total Debt:", total_debt)
+        print("Cash:", total_cash)
+        print("Assets:", total_assets)
+        print("Revenue:", revenue)
+        print("============================\n")
         quote = data.get("quoteType", {})
-        row = StockFundamentals(
-            ticker=ticker,
-            sector=profile.get("sector"),
-            industry=profile.get("industry"),
-            market_cap=financial.get("marketCap"),
-            quote_type=quote.get("quoteType"),
-            total_debt=total_debt,
-            total_cash=total_cash,
-            total_assets=total_assets,
-            receivables=receivables,
-            revenue=revenue,
-            interest_income=interest_income,
-            updated_at=datetime.now(timezone.utc))
-        session.add(row)
+        values = {
+            "ticker": ticker,
+            "sector": profile.get("sector"),
+            "industry": profile.get("industry"),
+            "market_cap": financial.get("marketCap"),
+            "quote_type": quote.get("quoteType"),
+            "total_debt": total_debt,
+            "total_cash": total_cash,
+            "total_assets": total_assets,
+            "receivables": receivables,
+            "revenue": revenue,
+            "interest_income": interest_income,
+            "financial_currency": financial_currency,
+            "updated_at": datetime.now(timezone.utc)}
+        stmt = (
+            insert(StockFundamentals)
+            .values(**values)
+            .on_conflict_do_update(
+                index_elements=["ticker"],
+                set_={
+                    "sector": values["sector"],
+                    "industry": values["industry"],
+                    "market_cap": values["market_cap"],
+                    "quote_type": values["quote_type"],
+                    "total_debt": values["total_debt"],
+                    "total_cash": values["total_cash"],
+                    "total_assets": values["total_assets"],
+                    "receivables": values["receivables"],
+                    "revenue": values["revenue"],
+                    "interest_income": values["interest_income"],
+                    "financial_currency": values["financial_currency"],
+                    "updated_at": values["updated_at"]}))
+        await session.execute(stmt)
         await session.commit()
-        return row
+        return await session.scalar(
+            select(StockFundamentals).where(
+                StockFundamentals.ticker == ticker))
 
 
 
@@ -182,6 +255,7 @@ async def get_stock_info(ticker: str):
     try:
         print(f"FETCHING {ticker}")
         stock = yf.Ticker(ticker)
+        print("STEP 1")
         hist = await asyncio.to_thread(stock.history, period="5y")
         if hist is None or hist.empty:
             return {"error": f"❌ Тикер {ticker} не найден"}
@@ -215,6 +289,7 @@ async def get_stock_info(ticker: str):
             "6M": pct(126),
             "1Y": pct(252),
             "5Y": pct(len(hist)-1)}
+        print("STEP 2")
         modules = await asyncio.to_thread(
             lambda: Ticker(ticker).get_modules([
                 "assetProfile",
@@ -223,6 +298,7 @@ async def get_stock_info(ticker: str):
                 "calendarEvents",
                 "price",
                 "summaryDetail"]))
+        print("STEP 3")
         data = modules.get(ticker, {})
         profile = data.get("assetProfile", {})
         financial = data.get("financialData", {})
@@ -235,14 +311,35 @@ async def get_stock_info(ticker: str):
             fundamentals = await session.scalar(
                 select(StockFundamentals)
                 .where(StockFundamentals.ticker == ticker))
+            logger.info(
+                "READ DB %s currency=%s updated_at=%s",
+                ticker,
+                fundamentals.financial_currency if fundamentals else None,
+                fundamentals.updated_at if fundamentals else None,)
             if fundamentals is None:
                 fundamentals = await ensure_fundamentals_exist(ticker, force_refresh=True)
             need_refresh = (
                 fundamentals is None or fundamentals.updated_at is None
                 or (datetime.now(timezone.utc) - fundamentals.updated_at)
-                > timedelta(days=30))
+                > timedelta(hours=1))
             if need_refresh:
-                fundamentals = await ensure_fundamentals_exist(ticker, force_refresh=True)
+                await ensure_fundamentals_exist(ticker, force_refresh=True)
+                session.expire_all()
+                fundamentals = await session.scalar(
+                    select(StockFundamentals).where(
+                        StockFundamentals.ticker == ticker))
+            currency = fundamentals.financial_currency
+            print("\n===== DB VALUES =====")
+            print("Ticker:", ticker)
+            print("DB currency:", fundamentals.financial_currency)
+
+            print("DB debt:", fundamentals.total_debt)
+            print("DB cash:", fundamentals.total_cash)
+            print("DB assets:", fundamentals.total_assets)
+            print("DB revenue:", fundamentals.revenue)
+
+            print("=====================\n")
+            fx = await get_fx_rate(currency, "USD")
             receivables = (
                 fundamentals.receivables
                 if fundamentals else None)
@@ -264,6 +361,18 @@ async def get_stock_info(ticker: str):
             financials_updated_at = (
                 fundamentals.updated_at
                 if fundamentals else None)
+            if total_cash is not None:
+                total_cash *= fx
+            if total_debt is not None:
+                total_debt *= fx
+            if total_assets is not None:
+                total_assets *= fx
+            if receivables is not None:
+                receivables *= fx
+            if revenue is not None:
+                revenue *= fx
+            if interest_income is not None:
+                interest_income *= fx
         if isinstance(ed, list):
             ed = ed[0]
         dte = financial.get("debtToEquity")
@@ -274,13 +383,42 @@ async def get_stock_info(ticker: str):
                 or stock.fast_info.get("market_cap"))
         if market_cap is None:
             market_cap = fundamentals.market_cap
-        print("MARKET CAP:", market_cap)
-        print("TOTAL CASH:", total_cash)
-        print("TOTAL DEBT:", total_debt)
-        print("CURRENCY:", price_data.get("currency"))
-        print("FINANCIAL CURRENCY:", financial.get("financialCurrency"))
-        print("DB INTEREST:", interest_income)
-        print("DB REVENUE:", revenue)
+        logger.info(
+            """
+        ================ FX DEBUG ================
+        Ticker               : %s
+        Financial currency   : %s
+        FX rate              : %s
+
+        RAW market cap       : %s
+        RAW debt             : %s
+        RAW cash             : %s
+        RAW revenue          : %s
+        RAW receivables      : %s
+
+        Converted debt       : %s
+        Converted cash       : %s
+        Converted revenue    : %s
+        Converted receivable : %s
+
+        Debt/Cap             : %s
+        Cash/Cap             : %s
+        ==========================================
+        """,
+            ticker,
+            currency,
+            fx,
+            market_cap,
+            fundamentals.total_debt if fundamentals else None,
+            fundamentals.total_cash if fundamentals else None,
+            fundamentals.revenue if fundamentals else None,
+            fundamentals.receivables if fundamentals else None,
+            total_debt,
+            total_cash,
+            revenue,
+            receivables,
+            total_debt / market_cap if total_debt and market_cap else None,
+            total_cash / market_cap if total_cash and market_cap else None,)
         result = {
             "name": price_data.get("shortName"),
             "ticker": ticker.upper(),
@@ -305,6 +443,14 @@ async def get_stock_info(ticker: str):
             "financials_updated_at": financials_updated_at,
             "ebitda": clean_number(financial.get("ebitda"))}
         set_cached(STOCK_INFO_CACHE, ticker, result)
+        logger.info(
+            "%s FINAL: market_cap=%s debt=%s cash=%s revenue=%s currency=%s",
+            ticker,
+            result["market_cap"],
+            result["total_debt"],
+            result["total_cash"],
+            result["revenue"],
+            currency)
         return result
     except Exception as e:
         traceback.print_exc()
