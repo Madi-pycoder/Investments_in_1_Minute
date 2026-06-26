@@ -1,4 +1,11 @@
 import numpy as np
+import logging
+import inspect
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    force=True
+)
 TRADING_DAYS = 252
 
 def simulate_goal_probability(
@@ -13,14 +20,12 @@ def simulate_goal_probability(
         return None
     if portfolio_volatility is None:
         return None
-    seed = int(current_value + goal_amount + years * 100)
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng()
     days = years * TRADING_DAYS
     mu = expected_return / TRADING_DAYS
     sigma = portfolio_volatility / np.sqrt(TRADING_DAYS)
     random_returns = rng.normal(mu, sigma, (simulations, days))
-    growth = np.cumprod(1 + random_returns, axis=1)
-    values = np.zeros_like(growth)
+    values = np.zeros((simulations, days))
     values[:, 0] = current_value
     monthly_step = 21
     contribution = monthly_contribution
@@ -30,6 +35,20 @@ def simulate_goal_probability(
             values[:, t] += contribution
             contribution *= (1 + contribution_growth / 12)
     final_values = values[:, -1]
+
+    final_values = final_values[
+        np.isfinite(final_values)
+    ]
+
+    if len(final_values) == 0:
+        return {
+            "probability": 0,
+            "expected": 0,
+            "worst": 0}
+    logging.info(
+        f"nan={np.isnan(final_values).sum()} "
+        f"inf={np.isinf(final_values).sum()} "
+        f"max={np.nanmax(final_values)}")
     prob = np.mean(final_values >= goal_amount) * 100
     if prob == 0:
         median = np.median(final_values)
@@ -86,14 +105,12 @@ def optimize_multi_goals(goal_results):
     return insights
 
 
-
-def simulate_multiple_goals(positions_data, total_value, goals, portfolio_volatility):
+def simulate_multiple_goals(positions_data, total_value, goals,
+    portfolio_volatility, monthly_contribution):
     results = []
+    auto_monthly = monthly_contribution
     for goal in goals:
-        monthly = calculate_monthly_contribution(
-            total_value,
-            goal["amount"],
-            goal["years"])
+        monthly = auto_monthly
         sim = simulate_goal_probability(
             positions_data,
             total_value,
@@ -101,10 +118,12 @@ def simulate_multiple_goals(positions_data, total_value, goals, portfolio_volati
             goal["years"],
             portfolio_volatility=portfolio_volatility,
             monthly_contribution=monthly)
-        analysis = analyze_goal(
-            sim,
-            monthly,
-            portfolio_volatility)
+        required_monthly = calculate_monthly_contribution(
+            total_value, goal["amount"], goal["years"], rate=0.07)
+        actual_monthly = auto_monthly
+        analysis = {
+            "monthly_needed": required_monthly,
+            "actual_monthly": actual_monthly}
         if sim is None:
             results.append({
                 "goal": goal,
@@ -116,6 +135,7 @@ def simulate_multiple_goals(positions_data, total_value, goals, portfolio_volati
             "goal": goal,
             "simulation": sim,
             "analysis": analysis})
+
     return results
 
 
@@ -268,7 +288,13 @@ def generate_auto_invest_plan(positions_data,
     return sorted(plan, key=lambda x: x["amount"], reverse=True)
 
 
-def run_what_if_scenarios(positions_data, current_value, goal, base_volatility, monthly_budget):
+def run_what_if_scenarios(positions_data, portfolio_total, goal, base_volatility,
+    monthly_budget):
+    logging.info(
+        f"WHAT_IF monthly_budget={monthly_budget}")
+    logging.info(
+        f"CALLER={inspect.stack()[1].filename}:"
+        f"{inspect.stack()[1].lineno}")
     scenarios = []
     base_prob = None
     variations = [
@@ -276,19 +302,18 @@ def run_what_if_scenarios(positions_data, current_value, goal, base_volatility, 
         {"name": f"+${int(monthly_budget)}/мес", "boost": monthly_budget, "years": 0},
         {"name": "+2 года к сроку", "boost": 0, "years": 2},
         {"name": "Более консервативный портфель", "boost": 0, "risk": 0.12},]
+    logging.info(f"WHAT_IF monthly_budget={monthly_budget}")
     for v in variations:
-        monthly = calculate_monthly_contribution(
-            current_value,
-            goal["amount"],
-            goal["years"] + v.get("years", 0)) + v.get("boost", 0)
+        base_monthly = monthly_budget
+        monthly = base_monthly + v.get("boost", 0)
         sim = simulate_goal_probability(
         positions_data=positions_data,
-        current_value=current_value,
+        current_value=portfolio_total,
         goal_amount=goal["amount"],
         years=goal["years"] + v.get("years", 0),
         portfolio_volatility=v.get("risk", base_volatility),
         monthly_contribution=monthly)
-        if v["name"] == "Base":
+        if base_prob is None:
             base_prob = sim["probability"]
         if sim is None:
             continue
@@ -300,20 +325,6 @@ def run_what_if_scenarios(positions_data, current_value, goal, base_volatility, 
             "scenario": v["name"],
             "probability": sim["probability"],
             "delta": round(delta, 1)})
-
-        base_sim = simulate_goal_probability(
-        positions_data=positions_data,
-        current_value=current_value,
-        goal_amount=goal["amount"],
-        years=goal["years"] + v.get("years", 0),
-        portfolio_volatility=v.get("risk", base_volatility),
-        monthly_contribution=monthly)
-        if not base_sim:
-            return []
-        if base_sim["probability"] >= 95:
-            return {
-                "status": "already_safe",
-                "probability": base_sim["probability"]}
     return scenarios
 
 
