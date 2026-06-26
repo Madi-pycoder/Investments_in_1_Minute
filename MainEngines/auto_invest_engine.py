@@ -8,7 +8,7 @@ from ProjectDataBase.cache import (AUTO_INVEST_METRICS_CACHE, AUTO_INVEST_INFLIG
 from ProjectDataBase.market_data_service import ensure_utc
 from ProfileData.user_profile import (get_portfolio_profile, update_portfolio_profile, get_user_profile,
     create_user_profile, create_portfolio_profile)
-from robo_engine import RoboAdvisor
+from MainEngines.robo_engine import RoboAdvisor
 from ProjectDataBase import backend as rq
 
 
