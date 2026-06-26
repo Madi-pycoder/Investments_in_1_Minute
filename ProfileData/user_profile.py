@@ -3,7 +3,7 @@ from dataclasses import dataclass, asdict
 from typing import Optional, Dict
 from sqlalchemy import select, update
 from ProjectDataBase.models import (UserProfileDB,
-                                    PortfolioSettings, async_session, Owner)
+    PortfolioSettings, async_session, Owner)
 
 
 @dataclass
@@ -119,19 +119,27 @@ def db_to_portfolio_profile(db: PortfolioSettings):
 
 
 def get_effective_monthly_budget(portfolio_profile, total_value=None):
-    if (portfolio_profile
-        and portfolio_profile.monthly_budget > 0):
-        return portfolio_profile.monthly_budget
-    if total_value:
-        return round(total_value * 0.03, 2)
-    return 0
+    print("PROFILE_BUDGET", getattr(portfolio_profile, "monthly_budget", None))
+    try:
+        if isinstance(portfolio_profile, (int, float)):
+            return float(portfolio_profile)
+        budget = getattr(portfolio_profile, "monthly_budget", None)
+        if budget is not None and budget > 0:
+            return float(budget)
+        if total_value:
+            return round(float(total_value) * 0.03, 2)
+        return 0.0
+    except Exception:
+        return 0.0
 
 
 def get_risk_multiplier(portfolio_profile):
+    if not hasattr(portfolio_profile, "risk_tolerance"):
+        return 1.0
     mapping = {
         "low": 0.8,
         "medium": 1.0,
-        "high": 1.2}
+        "high": 1.2,}
     return mapping.get(portfolio_profile.risk_tolerance, 1.0)
 
 
