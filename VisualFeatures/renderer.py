@@ -76,19 +76,15 @@ def format_money(value):
 def format_percent(value):
     if value is None:
         return "Нет данных"
-    return f"{float(value):.1f}"
+    try:
+        return f"{float(value):.1f}"
+    except (TypeError, ValueError):
+        return "Ошибка данных"
 
 
 def risk_bar(score):
-    filled = round(score/20)
+    if score is None:
+        return "⬜⬜⬜⬜⬜"
+
+    filled = round(score / 20)
     return "🟩" * filled + "⬜" * (5 - filled)
-
-
-def signed_growth(x):
-    if x is None:
-        return "Нет данных"
-    if x >= 0:
-        icon = "🟢"
-    else:
-        "🔴"
-    return f"{icon} {x:=.1f}$"
