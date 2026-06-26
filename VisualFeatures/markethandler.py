@@ -1,6 +1,9 @@
 import asyncio
 import random
 import time
+import traceback
+import pandas as pd
+from datetime import datetime
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
@@ -9,7 +12,7 @@ from MarketFeatures.market import get_etf_holdings, get_stock_info, get_etf_info
 from aiogram.fsm.state import State, StatesGroup
 from MainMetricsComputingFeatures.shariah import shariah_screen, shariah_screen_etf_full
 from MainMetricsComputingFeatures.riskmanagement import get_risk_metrics_cached, calculate_etf_risk
-from VisualFeatures.renderer import format_shariah, format_money, format_percent, risk_bar, signed_growth
+from VisualFeatures.renderer import format_shariah, format_money, format_percent, risk_bar
 from VisualFeatures.charts import generate_asset_growth_graph
 from VisualFeatures import keyboards as kb
 
@@ -20,6 +23,7 @@ router = Router()
 
 @router.callback_query(F.data == "stocks")
 async def cmd_stocks(callback: CallbackQuery, state: FSMContext):
+    print("MARKETHANDLER IMPORTED")
     print("STOCKS START")
     await state.set_state(Mode.waiting_for_ticker)
     await state.update_data(type="stocks")
@@ -66,7 +70,7 @@ async def stock_shariah(callback: CallbackQuery):
 async def stock_safe(callback: CallbackQuery):
     await callback.message.answer(
         "🛡 Более устойчивые компании\n\n"
-        "BRK.B — инвестиционный лидер\n"
+        "BRK-B — инвестиционный лидер\n"
         "MSFT — ПО и облачные сервисы\n"
         "JNJ — медицина и лекарства\n"
         "KO — напитки Coca-Cola\n\n"
@@ -180,13 +184,21 @@ async def analyze_again_etfs(callback: CallbackQuery, state: FSMContext):
         "• SPUS — исламский аналог S&P 500\n"
         "• HLAL — исламские акции США\n"
         "• SPY — индекс S&P 500\n"
-        "• QQQ — крупнейшие технологии США", reply_markup=kb.popular_etfs)
+        "• QQQ — крупнейшие технологии США", reply_markup=kb.etf_categories)
 
 
 async def analyze_ticker(message: Message, state: FSMContext):
-    mode = await state.get_data()
-    mode_type = mode.get("type")
-    ticker = message.text.strip().upper()
+    print("STEP 1")
+    try:
+        mode = await state.get_data()
+        print("STEP 2")
+        mode_type = mode.get("type")
+        print("STEP 3")
+        ticker = message.text.strip().upper()
+        print("STEP 4")
+    except Exception as e:
+        print("EARLY CRASH:", repr(e))
+        raise
     asyncio.create_task(
         AnalyticsService.track_event(
             user_id=message.from_user.id,
@@ -201,12 +213,20 @@ async def analyze_ticker(message: Message, state: FSMContext):
             "• уровень риска\n"
             "• соответствие Шариату\n\n"
             "Это займёт несколько секунд.\n")
+        start = time.perf_counter()
         data = await get_stock_info(ticker)
+        print("get_stock_info:", time.perf_counter() - start)
         if "error" in data:
             await message.answer(data["error"])
             return
-        screening = await shariah_screen(data)
-        risk = await get_risk_metrics_cached(ticker)
+        risk_task = asyncio.create_task(get_risk_metrics_cached(ticker))
+        screening_task = asyncio.create_task(shariah_screen(data))
+        t = time.perf_counter()
+        print("shariah_screen:", time.perf_counter() - t)
+        t = time.perf_counter()
+        screening, risk = await asyncio.gather(screening_task, risk_task)
+        print("get_risk_metrics_cached:", time.perf_counter() - t)
+        print("RISK =", risk)
         risk_score = risk["risk_score"]
         risk_label = risk["risk_label"]
         pe = data["pe"]
@@ -219,7 +239,9 @@ async def analyze_ticker(message: Message, state: FSMContext):
         if data["growth"]["1Y"] < -20:
             insights.append(("📉", f"Акция переживает сильную просадку{data["growth"]["1Y"]}"))
 
-        if risk_score >= 80:
+        if risk_score is None:
+            risk_label = "Недостаточно данных"
+        elif risk_score >= 80:
             insights.append(("🛡", "Один из самых низких уровней риска"))
         if risk_score <= 50:
             insights.append(("⚠️", "Высокий риск"))
@@ -247,7 +269,7 @@ async def analyze_ticker(message: Message, state: FSMContext):
             insights.append(("⚠️", "Высокая зависимость от долга"))
 
         if not insights:
-            insights.append("Нужен дополнительный анализ")
+            insights.append(("ℹ️", "Нужен дополнительный анализ"))
         random.shuffle(insights)
         selected = insights[:4]
         insight_text = "\n".join(f"{icon} {text}" for icon, text in selected)
@@ -272,8 +294,8 @@ async def analyze_ticker(message: Message, state: FSMContext):
     {insight_text}
         
     📈 Рост
-    {signed_growth(data['growth']['1Y'])} За 1 год: {data['growth']['1Y']}%
-    {signed_growth(data['growth']['5Y'])} За 5 лет: {data['growth']['5Y']}%
+     За 1 год: {data['growth']['1Y']}%
+     За 5 лет: {data['growth']['5Y']}%
             
     👇 Что дальше?
             """
@@ -291,11 +313,23 @@ async def analyze_ticker(message: Message, state: FSMContext):
                     "asset_type": "stock",
                     "risk_score": risk_score,
                     "shariah": screening["status"]}))
+        print("ПЕРЕД СОХРАНЕНИЕМ", type(data))
+        print("ПЕРЕД СОХРАНЕНИЕМ", type(screening))
+        def make_json_safe(obj):
+            if isinstance(obj, dict):
+                return {k: make_json_safe(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [make_json_safe(v) for v in obj]
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            if isinstance(obj, pd.Timestamp):
+                return obj.isoformat()
+            return obj
         await state.update_data(
             last_ticker=ticker,
             last_price=data["price"],
-            last_stock_data=data,
-            last_screening=screening,
+            last_stock_data=make_json_safe(data),
+            last_screening=make_json_safe(screening),
             last_risk_score=risk_score,
             last_risk_label=risk_label)
         return
@@ -322,8 +356,9 @@ async def analyze_ticker(message: Message, state: FSMContext):
         if risk["risk_score"] > 80:
             insights.append(("🛡", "ETF относится к более стабильным"))
         if not insights:
-            insights.append("Нужен дополнительный анализ")
-        why_text = "\n".join([f"• {x}" for x in insights])
+            insights.append(("ℹ️", "Нужен дополнительный анализ"))
+        selected = insights[:4]
+        why_text = "\n".join(f"{icon} {text}" for icon, text in selected)
 
         text = f"""
     🧩 {data['ticker']}
@@ -348,8 +383,8 @@ async def analyze_ticker(message: Message, state: FSMContext):
 
     📈 Рост
 
-    {signed_growth(data['growth']['1Y'])} За 1 год: {data['growth']['1Y']}%
-    {signed_growth(data['growth']['5Y'])} За 5 лет: {data['growth']['5Y']}%
+    За 1 год: {data['growth']['1Y']}%
+    За 5 лет: {data['growth']['5Y']}%
             
         👇 Что дальше?
         """
@@ -362,6 +397,8 @@ async def analyze_ticker(message: Message, state: FSMContext):
             last_risk_score=risk_etf['risk_score'],
             last_risk_label=risk_etf['risk_label'])
         print("SAVED STATE: ", await state.get_data())
+        print("MESSAGE =", message)
+        print("FROM USER =", message.from_user)
         asyncio.create_task(
             AnalyticsService.track_event(
                 user_id=message.from_user.id,
@@ -381,11 +418,16 @@ async def ticker_handler(message, state):
 async def quick_ticker(callback: CallbackQuery, state: FSMContext):
     print("QUICK CALLBACK FIRED")
     ticker = callback.data.replace("quick_", "")
+    print("CALLBACK DATA =", callback.data)
+    print(
+        "CURRENT FSM =",
+        await state.get_data())
     fake_message = callback.message.model_copy(update={"text": ticker})
     try:
         await analyze_ticker(fake_message, state)
     except Exception as e:
-        print("QUICK ERROR: ", e)
+        print("QUICK ERROR:", repr(e))
+        traceback.print_exc()
 
 
 
@@ -408,6 +450,7 @@ async def deep_analysis_handler(callback: CallbackQuery,
                 "ticker": ticker,
                 "asset_type": mode_type}))
     if mode_type == "stocks":
+        await callback.message.answer("🧮 Уже делаем детальный анализ...")
         stocks_data = await get_stock_info(ticker)
         if "error" in stocks_data:
             await callback.message.answer(data["error"])
@@ -416,7 +459,7 @@ async def deep_analysis_handler(callback: CallbackQuery,
         stock_data = state_data.get("last_stock_data")
         screening = await shariah_screen(stocks_data)
         if not stock_data:
-            await callback.message.answer("Analyze an asset first.")
+            await callback.message.answer("Сперва получите анализ актива.")
             return
         risk = await get_risk_metrics_cached(ticker)
         vol = risk["volatility"]
@@ -461,12 +504,12 @@ async def deep_analysis_handler(callback: CallbackQuery,
         📊 {stocks_data['name']} ({stocks_data['ticker']})
 
         📘 Основные показатели
-        • Долг / капитал: {format_percent(['debt_to_equity'])}
+        • Долг / капитал: {format_percent(stocks_data['debt_to_equity'])}
             Чем ниже - тем лучше
         • Цена / прибыль: {stocks_data['pe']}
             Показывает, как компания ценится на рынке.
             Желательно 20-30 коэффицентов
-        • Капитализация: {format_money(['market_cap'])}
+        • Капитализация: {format_money(stocks_data['market_cap'])}
             Размер компании
 
         🕌 Проверка по стандартам Шариата
@@ -483,7 +526,7 @@ async def deep_analysis_handler(callback: CallbackQuery,
 
         📊 Финансовая проверка
 
-            {audit_text}
+        {audit_text}
 
         🕒 Актуальность данных
 
@@ -509,16 +552,25 @@ async def deep_analysis_handler(callback: CallbackQuery,
 
 
         📈 Доходность
-        {signed_growth(stocks_data['growth']['1D'])} 1 день: {stocks_data['growth']['1D']}%
-        {signed_growth(stocks_data['growth']['5D'])} 5 дней: {stocks_data['growth']['5D']}%
-        {signed_growth(stocks_data['growth']['1M'])} 1 месяц: {stocks_data['growth']['1M']}%
-        {signed_growth(stocks_data['growth']['6M'])} 6 месяцев: {stocks_data['growth']['6M']}%
-        {signed_growth(stocks_data['growth']['1Y'])} 1 год: {stocks_data['growth']['1Y']}%
-        {signed_growth(stocks_data['growth']['5Y'])} 5 лет: {stocks_data['growth']['5Y']}%
+        1 день: {stocks_data['growth']['1D']}%
+        5 дней: {stocks_data['growth']['5D']}%
+        1 месяц: {stocks_data['growth']['1M']}%
+        6 месяцев: {stocks_data['growth']['6M']}%
+        1 год: {stocks_data['growth']['1Y']}%
+        5 лет: {stocks_data['growth']['5Y']}%
         """
+        from aiogram.types import BufferedInputFile
+        chart = await generate_asset_growth_graph(ticker)
+        if chart:
+            photo = BufferedInputFile(
+                chart.read(),
+                filename=f"{ticker}.png")
+            await callback.message.answer_photo(photo,
+                caption=f"📈 {ticker} Рост цены за 1 год")
         await callback.message.answer(text, reply_markup=kb.after_analysis)
 
     if mode_type == "etfs":
+        await callback.message.answer("🧮 Уже делаем детальный анализ...")
         data = await get_etf_info(ticker)
         if "error" in data:
             await callback.message.answer(data["error"])
@@ -554,7 +606,7 @@ async def deep_analysis_handler(callback: CallbackQuery,
 
         Статус: {format_shariah(screening["status"])}
 
-        Доля соответствующих активов: {format_percent(['halal_percent'])}%
+        Доля соответствующих активов: {format_percent(screening['halal_percent'])}%
         Покрытие анализа: {format_percent(screening['covered_percent'])}%
         Не удалось проверить: {format_percent(screening.get('unknown_percent', 0))}%
 
@@ -585,12 +637,12 @@ async def deep_analysis_handler(callback: CallbackQuery,
 
         📈 Рост
 
-        {signed_growth(data['growth']['1D'])} 1 день: {data['growth']['1D']}%
-        {signed_growth(data['growth']['5D'])} 5 дней: {data['growth']['5D']}%
-        {signed_growth(data['growth']['1M'])} 1 месяц: {data['growth']['1M']}%
-        {signed_growth(data['growth']['6M'])} 6 месяцев: {data['growth']['6M']}%
-        {signed_growth(data['growth']['1Y'])} 1 год: {data['growth']['1Y']}%
-        {signed_growth(data['growth']['5Y'])} 5 лет: {data['growth']['5Y']}%
+        1 день: {data['growth']['1D']}%
+        5 дней: {data['growth']['5D']}%
+        1 месяц: {data['growth']['1M']}%
+        6 месяцев: {data['growth']['6M']}%
+        1 год: {data['growth']['1Y']}%
+        5 лет: {data['growth']['5Y']}%
         """
         await callback.message.answer(text, reply_markup=kb.after_analysis)
         from aiogram.types import BufferedInputFile
