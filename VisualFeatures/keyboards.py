@@ -1,3 +1,5 @@
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 maind = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(
@@ -42,9 +44,6 @@ portfolio_dashboard = InlineKeyboardMarkup(
             text="⚡ Быстро исправить",
             callback_data="goal_fix")],
         [InlineKeyboardButton(
-            text="🎯 Цели",
-            callback_data="goal_view"),
-        InlineKeyboardButton(
             text="🚀 Авто-Инвестиции",
             callback_data="auto_invest")],
         [InlineKeyboardButton(
@@ -127,8 +126,8 @@ shariah_stocks = InlineKeyboardMarkup(
 safe_stocks = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(
-            text="BRK.B",
-            callback_data="quick_BRK.B"),
+            text="BRK-B",
+            callback_data="quick_BRK-B"),
         InlineKeyboardButton(
             text="MSFT",
             callback_data="quick_MSFT")],
@@ -286,17 +285,20 @@ goal_compliance = InlineKeyboardMarkup(
 
 add_goal = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="🎯 Добавить цель",
+        [InlineKeyboardButton(
+            text="🎯 Добавить цель",
             callback_data="goal_settings")]])
 
 create_demo = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Создать портфель",
+        [InlineKeyboardButton(
+            text="🚀 Создать портфель",
             callback_data="create_demo")]])
 
 login_demo = InlineKeyboardMarkup(
     inline_keyboard=[
-        [InlineKeyboardButton(text="💼 Мой портфель",
+        [InlineKeyboardButton(
+            text="💼 Мой портфель",
             callback_data="portfolio_hub")]])
 
 after_show_portfolio = InlineKeyboardMarkup(
@@ -304,15 +306,12 @@ after_show_portfolio = InlineKeyboardMarkup(
         [InlineKeyboardButton(
             text="🧠 Что улучшить?",
             callback_data="financial_brain"),
-            InlineKeyboardButton(
-                text="⚡ Быстро исправить",
-                callback_data="goal_fix")],
+        InlineKeyboardButton(
+            text="⚡ Быстро исправить",
+            callback_data="goal_fix")],
         [InlineKeyboardButton(
-            text="🎯 Цели",
-            callback_data="goal_view"),
-            InlineKeyboardButton(
-                text="🚀 Авто-Инвестиции",
-                callback_data="auto_invest")],
+            text="🚀 Авто-Инвестиции",
+            callback_data="auto_invest")],
         [InlineKeyboardButton(
             text="🧮 Сценарии",
             callback_data="what_if")],
