@@ -1,9 +1,11 @@
 from datetime import datetime, date
 from config import DATABASE_URL
-from sqlalchemy import (BigInteger,DateTime,Date,String,Integer,Float,Boolean,ForeignKey,UniqueConstraint,Index,func,)
-from sqlalchemy.ext.asyncio import (create_async_engine,async_sessionmaker,AsyncAttrs,)
-from sqlalchemy.orm import (DeclarativeBase,mapped_column,Mapped,)
+from sqlalchemy import (BigInteger, DateTime, Date, String, Integer,
+    Float, Boolean, ForeignKey, UniqueConstraint, Index, func, select)
+from sqlalchemy.ext.asyncio import (create_async_engine, async_sessionmaker, AsyncAttrs,)
+from sqlalchemy.orm import (DeclarativeBase, mapped_column, Mapped,)
 from sqlalchemy.dialects.postgresql import JSONB
+print("DATABASE_URL =", DATABASE_URL)
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
@@ -49,7 +51,8 @@ class Portfolio(Base):
 
 class Position(Base):
     __tablename__ = "positions"
-    __table_args__ = (Index("ix_position_portfolio", "portfolio_id"),Index("ix_position_ticker", "ticker"),)
+    __table_args__ = (Index("ix_position_portfolio", "portfolio_id"),
+        Index("ix_position_ticker", "ticker"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"))
     ticker: Mapped[str] = mapped_column(String(20))
@@ -77,7 +80,8 @@ class Goal(Base):
     __tablename__ = "goals"
     __table_args__ = (Index("ix_goal_portfolio", "portfolio_id"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"))
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id",
+        ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String)
     amount: Mapped[float] = mapped_column(Float)
     years: Mapped[int] = mapped_column(Integer)
@@ -144,13 +148,14 @@ class StockFundamentals(Base):
     quote_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     market_cap: Mapped[float | None] = mapped_column(Float, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
-    server_default=func.now(), onupdate=func.now(), index=True)
+        server_default=func.now(), onupdate=func.now(), index=True)
     total_debt: Mapped[float | None] = mapped_column(Float, nullable=True)
     total_cash: Mapped[float | None] = mapped_column(Float, nullable=True)
     total_assets: Mapped[float | None] = mapped_column(Float, nullable=True)
     receivables: Mapped[float | None] = mapped_column(Float, nullable=True)
     revenue: Mapped[float | None] = mapped_column(Float, nullable=True)
     interest_income: Mapped[float | None] = mapped_column(Float, nullable=True)
+    financial_currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
 
 class UserProfileDB(Base):
@@ -223,6 +228,14 @@ class PortfolioSettings(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+
 async def async_main():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    async with async_session() as session:
+        stocks = await session.scalar(
+            select(Category).where(Category.name == "Stocks"))
+        if not stocks:
+            session.add(Category(name="Stocks"))
+            await session.commit()
+            print("CREATED CATEGORY STOCKS")
