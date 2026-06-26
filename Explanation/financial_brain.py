@@ -160,9 +160,7 @@ class FinancialBrain:
                     "портфеля может снижаться заметнее, чем ожидается."),
                 impact=(
                     "Ребалансировка может сделать "
-                    "портфель более стабильным."),
-                action_label="⚖️ Снизить риск",
-                callback="rebalance_now"))
+                    "портфель более стабильным.")))
         return items
 
     def diversification_insights(self):
