@@ -3,32 +3,48 @@ services:
   bot:
     build: .
     container_name: investments_in_1_minute
-
     restart: always
-
     env_file:
       - .env
-
+    environment:
+      DATABASE_URL: ${DB_URL_POSTGRES}
     depends_on:
       - redis
+      - postgres
+
+
+  market_worker:
+    build: .
+    container_name: market_worker
+    restart: always
+    command: python -m ProjectDataBase.market_data_worker
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DB_URL_POSTGRES}
+    depends_on:
+      - postgres
+
 
   redis:
     image: redis:7
-
     container_name: redis
-
     restart: always
+    ports:
+      - "6379:6379"
 
 
   postgres:
     image: postgres:17
-
     restart: always
-
     environment:
-      POSTGRES_DB: investai
-      POSTGRES_USER:
-      POSTGRES_PASSWORD: password
-
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
