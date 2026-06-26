@@ -5,4 +5,5 @@ load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
+DB_URL_POSTGRES = os.getenv("DB_URL_POSTGRES")
 REDIS_URL = os.getenv("REDIS_URL")
