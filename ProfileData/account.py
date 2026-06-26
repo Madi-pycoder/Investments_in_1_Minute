@@ -182,10 +182,17 @@ async def cmd_regend(message: Message, state: FSMContext):
         reply_markup=kb.portfolio_dashboard)
 
 @router.callback_query(F.data == "goal_settings")
-async def goal_start(callback: CallbackQuery,state: FSMContext):
+async def goal_start(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    portfolio_id = data.get("portfolio_id")
+    if not portfolio_id:
+        await callback.message.answer("❌ Портфель не найден. Откройте портфель заново.")
+        return
+    await state.update_data(portfolio_id=portfolio_id)
     await callback.answer()
     await state.set_state(GoalQuiz.waiting_goal)
-    await callback.message.answer("🎯 Для чего вы инвестируете?",
+    await callback.message.answer(
+        "🎯 Для чего вы инвестируете?",
         reply_markup=kb.goal_name_quiz)
 
 
@@ -241,7 +248,8 @@ async def goal_timeline(callback: CallbackQuery, state: FSMContext):
         "")
     if timeline == "custom":
         await state.set_state(GoalQuiz.custom_goal_timeline)
-        await callback.message.answer("Enter custom timeline in years:")
+        await callback.message.answer("⏳ За какой срок хотите достичь цели?\n\n"
+            "Введите срок в годах")
         return
     await state.update_data(goal_timeline=int(timeline))
     await state.set_state(GoalQuiz.waiting_compliance)
