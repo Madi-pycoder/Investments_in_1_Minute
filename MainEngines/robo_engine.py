@@ -15,6 +15,7 @@ class RoboAdvisor:
         self.user_profile = user_profile
         self.portfolio_profile = portfolio_profile
         self.metrics = metrics
+        self.monthly_contribution = 0
         self.positions = metrics.get("positions_data", [])
         self.total_value = metrics.get("total_value", 0)
         self.goals = data["goals"]
@@ -23,12 +24,15 @@ class RoboAdvisor:
         self._cached_plan = None
         self._cached_goal_analysis = None
         self._cached_nudges = None
+        self.total_value = metrics.get("total_value", 0)
+        self.cash = data["portfolio"].cash
+        self.portfolio_total = (self.total_value + self.cash)
 
     def get_issues(self):
         issues = []
         monthly_budget = get_effective_monthly_budget(
             self.portfolio_profile,
-            self.total_value)
+            self.portfolio_total)
         if monthly_budget <= 0:
             issues.append("Укажите ежемесячный бюджет для инвестиций")
         if not self.positions:
@@ -63,7 +67,7 @@ class RoboAdvisor:
             optimizations = optimize_portfolio_for_goals(
                 self.positions,
                 self.total_value,
-                self.goals,)
+                self.goals)
             if optimizations:
                 target_risk = optimizations[0]["risk"]
         target_weights = build_goal_based_weights(
@@ -99,9 +103,8 @@ class RoboAdvisor:
             return None
         vol = (self.risk.get("volatility") or 15) / 100
         self._cached_goal_analysis = simulate_multiple_goals(
-            self.positions,
-            self.total_value,
-            self.goals, vol)
+            self.positions, self.portfolio_total,
+            self.goals, vol, self.monthly_contribution)
         return self._cached_goal_analysis
 
     def generate_actions(self):
@@ -135,11 +138,11 @@ class RoboAdvisor:
         results = []
         monthly_budget = get_effective_monthly_budget(
             self.portfolio_profile,
-            self.total_value)
+            self.portfolio_total)
         for goal in self.goals:
             scenario_result = run_what_if_scenarios(
                 self.positions,
-                self.total_value,
+                self.portfolio_total,
                 goal, vol, monthly_budget)
             if isinstance(scenario_result, dict):
                 scenario_result["goal"] = goal["name"]
