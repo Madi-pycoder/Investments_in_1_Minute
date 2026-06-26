@@ -5,8 +5,7 @@ from sqlalchemy import select, func
 from ProjectDataBase.models import (
     async_session,
     AnalyticsEvent, DailyAnalyticsSnapshot,
-    Owner, Portfolio,
-    Goal, UserProfileDB)
+    Owner, Portfolio, Goal)
 
 
 class AnalyticsService:
@@ -49,7 +48,8 @@ class AnalyticsService:
             return result
         except Exception as e:
             duration_ms = int((time.perf_counter() - start) * 1000)
-            asyncio.create_task(AnalyticsService.track_event(
+            asyncio.create_task(
+                AnalyticsService.track_event(
                 user_id=user_id, event_name=event_name, category=category,
                 duration_ms=duration_ms, success=False,
                 event_data={
@@ -96,14 +96,17 @@ class AnalyticsService:
         async with async_session() as session:
             new_users = await session.scalar(
                 select(func.count())
+                .select_from(Owner)
                 .where(func.date(Owner.created_at) == today))
             activated_users = await session.scalar(
                 select(func.count(func.distinct(AnalyticsEvent.user_id)))
                 .where(AnalyticsEvent.event_name.in_(
                         ["goal.created",
-                            "analysis.completed",
-                            "portfolio.created"]),
-                    func.date(AnalyticsEvent.created_at) == today))
+                        "analysis.completed",
+                        "portfolio.created"]),
+                AnalyticsEvent.user_id.in_(
+                    select(Owner.tg_id)
+                    .where(func.date(Owner.created_at) == today))))
             if not new_users:
                 return 0.0
             return round((activated_users or 0) / new_users, 4)
@@ -154,7 +157,7 @@ class AnalyticsService:
     @staticmethod
     async def calculate_avg_portfolio_size() -> float:
         async with async_session() as session:
-            avg_size = await session.scalar(select(func.avg(Portfolio.cash)))
+            avg_size = await session.scalar(select(func.avg(Portfolio.total_value)))
             return round(float(avg_size or 0), 2)
 
 
@@ -172,9 +175,9 @@ class AnalyticsService:
     async def calculate_churn_risk() -> float:
         threshold = (datetime.now(timezone.utc) - timedelta(days=7))
         async with async_session() as session:
-            total_users = await session.scalar(select(func.count(Owner.id)))
-            inactive_users = await session.scalar(select(func.count(UserProfileDB.user_id))
-                .where(~UserProfileDB.user_id.in_(
+            total_users = await session.scalar(select(func.count(Owner.tg_id)))
+            inactive_users = await session.scalar(select(func.count(Owner.tg_id))
+                .where(~Owner.tg_id.in_(
                         select(AnalyticsEvent.user_id)
                         .where(AnalyticsEvent.created_at >= threshold))))
             if not total_users:
@@ -198,23 +201,40 @@ class AnalyticsService:
             avg_response = await session.scalar(select(func.avg(AnalyticsEvent.duration_ms))
                 .where(AnalyticsEvent.duration_ms.is_not(None),
                     func.date(AnalyticsEvent.created_at) == today))
-            snapshot = DailyAnalyticsSnapshot(
-                date=today,
-                dau=dau or 0,
-                portfolio_opens=portfolio_opens or 0,
-                auto_invest_execs=auto_execs or 0,
-                avg_response_time=float(avg_response or 0),
-                retention_d1=await AnalyticsService.calculate_retention(1),
-                retention_d7=await AnalyticsService.calculate_retention(7),
-                activation_rate=await AnalyticsService.calculate_activation_rate(),
-                rebalance_adoption=await AnalyticsService.calculate_rebalance_adoption(),
-                ai_engagement_rate=await AnalyticsService.calculate_ai_engagement_rate(),
-                auto_invest_conversion=await AnalyticsService.calculate_auto_invest_conversion(),
-                avg_portfolio_size=await AnalyticsService.calculate_avg_portfolio_size(),
-                avg_goals_per_user=await AnalyticsService.calculate_avg_goals_per_user(),
-                churn_risk_rate=await AnalyticsService.calculate_churn_risk())
-            session.add(snapshot)
+            existing = await session.get(DailyAnalyticsSnapshot, today)
+            if existing:
+                existing.dau = dau or 0
+                existing.portfolio_opens = portfolio_opens or 0
+                existing.auto_invest_execs = auto_execs or 0
+                existing.avg_response_time = float(avg_response or 0)
+                existing.retention_d1 = await AnalyticsService.calculate_retention(1)
+                existing.retention_d7 = await AnalyticsService.calculate_retention(7)
+                existing.activation_rate = await AnalyticsService.calculate_activation_rate()
+                existing.rebalance_adoption = await AnalyticsService.calculate_rebalance_adoption()
+                existing.ai_engagement_rate = await AnalyticsService.calculate_ai_engagement_rate()
+                existing.auto_invest_conversion = await AnalyticsService.calculate_auto_invest_conversion()
+                existing.avg_portfolio_size = await AnalyticsService.calculate_avg_portfolio_size()
+                existing.avg_goals_per_user = await AnalyticsService.calculate_avg_goals_per_user()
+                existing.churn_risk_rate = await AnalyticsService.calculate_churn_risk()
+            else:
+                session.add(
+                    DailyAnalyticsSnapshot(
+                        date=today,
+                        dau=dau or 0,
+                        portfolio_opens=portfolio_opens or 0,
+                        auto_invest_execs=auto_execs or 0,
+                        avg_response_time=float(avg_response or 0),
+                        retention_d1=await AnalyticsService.calculate_retention(1),
+                        retention_d7=await AnalyticsService.calculate_retention(7),
+                        activation_rate=await AnalyticsService.calculate_activation_rate(),
+                        rebalance_adoption=await AnalyticsService.calculate_rebalance_adoption(),
+                        ai_engagement_rate=await AnalyticsService.calculate_ai_engagement_rate(),
+                        auto_invest_conversion=await AnalyticsService.calculate_auto_invest_conversion(),
+                        avg_portfolio_size=await AnalyticsService.calculate_avg_portfolio_size(),
+                        avg_goals_per_user=await AnalyticsService.calculate_avg_goals_per_user(),
+                        churn_risk_rate=await AnalyticsService.calculate_churn_risk()))
             await session.commit()
+
 
 def build_portfolio_event_data(
         portfolio_id: int | None, positions, goals,
