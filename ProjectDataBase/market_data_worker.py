@@ -7,15 +7,44 @@ from sqlalchemy import select
 from ProjectDataBase.models import (async_session, Position, MarketPrice,
     HistoricalPrice, StockFundamentals)
 from yahooquery import Ticker
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import func, text
+import logging
+
+logger = logging.getLogger("halal")
+logger.setLevel(logging.INFO)
+
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "[%(levelname)s] %(asctime)s %(message)s"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 UPDATE_INTERVAL = 900
+CORE_TICKERS = {
+    "SPY",
+    "VOO",
+    "QQQ",
+    "VTI",
+    "AAPL",
+    "MSFT",
+    "NVDA"}
+KNOWN_FINANCIAL_CURRENCY = {
+    "TSM": "TWD",
+    "005930.KS": "KRW",
+    "2330.TW": "TWD",
+    "SSNLF": "KRW"}
 
 async def get_all_tickers():
     async with async_session() as session:
         result = await session.scalars(
             select(Position.ticker).distinct())
-        return result.all()
-
+        tickers = set(result.all())
+        tickers.update({"SPY", "VOO", "QQQ", "VTI"})
+        logger.info("ALL TICKERS: %s", sorted(tickers))
+        return list(tickers)
 
 def find_interest_income(income):
     if income is None or income.empty:
@@ -78,31 +107,37 @@ async def update_market_price(ticker, session):
 
 async def update_history(ticker):
     try:
-        stock = yf.Ticker(ticker)
-        hist = await asyncio.to_thread(lambda: stock.history(period="6mo"))
-        if hist is None or hist.empty:
-            return
         async with async_session() as session:
-            existing_dates = await session.scalars(
-                select(HistoricalPrice.date).where(HistoricalPrice.ticker == ticker))
-            existing_dates = set(existing_dates.all())
-            new_rows = []
+            latest_date = await session.scalar(
+                select(func.max(HistoricalPrice.date))
+                .where(HistoricalPrice.ticker == ticker))
+            stock = yf.Ticker(ticker)
+            if latest_date:
+                hist = await asyncio.to_thread(
+                    lambda: stock.history(start=latest_date))
+            else:
+                hist = await asyncio.to_thread(
+                    lambda: stock.history(period="2y"))
+            if hist is None or hist.empty:
+                print(f"HISTORY EMPTY: {ticker}")
+                return
+            rows = []
             for idx, row in hist.iterrows():
-                date = idx.date()
-                if date in existing_dates:
-                    continue
-                new_rows.append(
-                    HistoricalPrice(
-                        ticker=ticker,
-                        date=date,
-                        open=float(row["Open"]),
-                        high=float(row["High"]),
-                        low=float(row["Low"]),
-                        close=float(row["Close"]),
-                        volume=float(row["Volume"]),))
-            if new_rows:
-                session.add_all(new_rows)
-                await session.commit()
+                rows.append({
+                    "ticker": ticker,
+                    "date": idx.date(),
+                    "open": float(row["Open"]),
+                    "high": float(row["High"]),
+                    "low": float(row["Low"]),
+                    "close": float(row["Close"]),
+                    "volume": float(row["Volume"]),})
+            stmt = insert(HistoricalPrice).values(rows)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["ticker", "date"])
+            await session.execute(stmt)
+            await session.commit()
+            result = await session.execute(text("SELECT current_database()"))
+            print("UPDATE_HISTORY DB =", result.scalar())
     except Exception as e:
         print(f"HISTORY ERROR {ticker}: {e}")
 
@@ -124,9 +159,12 @@ def get_first_existing(df, keys):
 
 async def update_fundamentals(ticker, session):
     try:
+        logger.info("FUND 1 %s", ticker)
         stock = yf.Ticker(ticker)
         bs = await asyncio.to_thread(lambda: stock.balance_sheet)
+        logger.info("FUND 2 %s", ticker)
         income = await asyncio.to_thread(lambda: stock.income_stmt)
+        logger.info("FUND 3 %s", ticker)
         total_debt = get_first_existing(bs, ["Total Debt",
             "Current Debt", "Long Term Debt"])
         total_cash = get_first_existing(bs, [
@@ -147,10 +185,30 @@ async def update_fundamentals(ticker, session):
             "assetProfile",
             "financialData",
             "quoteType"])) or {}
+        logger.info("FUND 4 %s", ticker)
         data = modules.get(ticker, {})
         profile = data.get("assetProfile", {})
         financial = data.get("financialData", {})
         quote = data.get("quoteType", {})
+        fast = await asyncio.to_thread(lambda: stock.fast_info)
+        logger.info("FUND 5 %s", ticker)
+        info = await asyncio.to_thread(lambda: stock.info)
+        logger.info("FUND 6 %s", ticker)
+        financial_currency = (
+                financial.get("financialCurrency")
+                or info.get("financialCurrency")
+                or info.get("currency")
+                or fast.get("currency"))
+        financial_currency = KNOWN_FINANCIAL_CURRENCY.get(ticker,
+            financial_currency)
+        logger.info(
+            "DB UPDATE %s currency=%s debt=%s cash=%s revenue=%s assets=%s",
+            ticker,
+            financial_currency,
+            total_debt,
+            total_cash,
+            revenue,
+            total_assets)
         existing = await session.scalar(
             select(StockFundamentals).where(StockFundamentals.ticker == ticker))
         payload = {
@@ -163,7 +221,8 @@ async def update_fundamentals(ticker, session):
             "total_assets": total_assets,
             "receivables": receivables,
             "revenue": revenue,
-            "interest_income": interest_income,}
+            "interest_income": interest_income,
+            "financial_currency": financial_currency}
         if existing:
             existing.sector = payload["sector"]
             existing.industry = payload["industry"]
@@ -175,6 +234,7 @@ async def update_fundamentals(ticker, session):
             existing.receivables = payload["receivables"]
             existing.revenue = payload["revenue"]
             existing.interest_income = payload["interest_income"]
+            existing.financial_currency = payload["financial_currency"]
             existing.updated_at = datetime.now(timezone.utc)
         else:
             session.add(StockFundamentals(ticker=ticker, **payload))
@@ -185,14 +245,20 @@ async def update_fundamentals(ticker, session):
 
 semaphore = asyncio.Semaphore(5)
 async def process_ticker(ticker):
+    logger.info("START %s", ticker)
     async with semaphore:
         async with async_session() as session:
             try:
                 await update_market_price(ticker, session)
+                logger.info("PRICE DONE %s", ticker)
                 await update_fundamentals(ticker, session)
-                if random.random() < 0.1:
+                logger.info("FUND DONE %s", ticker)
+                if ticker in CORE_TICKERS:
+                    await update_history(ticker)
+                elif random.random() < 0.1:
                     await update_history(ticker)
                 await session.commit()
+                logger.info("COMMIT DONE %s", ticker)
             except Exception as e:
                 print(f"ERROR {ticker}: {e}")
 
