@@ -1,7 +1,6 @@
 from aiogram import Router
 from aiogram.types import InlineKeyboardButton
 from ProjectDataBase.backend import get_goals
-from MainMetricsComputingFeatures.shariah import shariah_screen
 
 router = Router()
 
@@ -10,17 +9,15 @@ async def calculate_portfolio_shariah(positions_data):
     halal_weight = 0
     non_compliant = []
     for position in positions_data:
-        ticker = position.get("ticker")
-        weight = position.get("weight", 0)
+        weight = position["weight"]
         try:
-            screening = await shariah_screen({"ticker": ticker})
             total_weight += weight
-            if screening["status"] == "СООТВЕТСВУЕТ ШАРИАТУ ✅":
+            if position.get("shariah_compliant"):
                 halal_weight += weight
             else:
-                non_compliant.append({"ticker": ticker,
-                    "weight": weight})
-        except Exception:
+                non_compliant.append({"ticker": position["ticker"], "weight": weight})
+        except Exception as e:
+            print("SHARIAH ERROR:", position["ticker"], e)
             continue
     if total_weight == 0:
         return "Не доступно"
@@ -58,29 +55,34 @@ async def build_portfolio_text(data, metrics, portfolio_id):
     text = (
         "📊 Ваш портфель\n\n"
         f"💼 Общая стоиомсть: ${round(total_equity, 2)}\n"
+        f"📈 Инвестировано: ${round(total_equity-cash, 2)}\n"
         f"💵 Свободные средства: ${round(cash, 2)}\n\n")
     goals = await get_goals(portfolio_id)
     goal_results = metrics.get("goal_results") or []
-    if goal_results:
+    if len(goal_results) == 1:
+        only = goal_results[0]
+        text += (
+            f"🎯 Главная цель\n"
+            f"🎯 {only['goal']['name']}\n"
+            f"Вероятность достижения: "
+            f"{only['simulation']['probability']}%\n\n")
+    elif len(goal_results) > 1:
         weakest = min(
             goal_results,
             key=lambda x: x["simulation"]["probability"])
-        if weakest:
-            text += (
-                f"🎯 Цель с наименьшими шансами\n"
-                f"🎯 {weakest['goal']['name']}\n"
-                f"Вероятность достижения: {weakest['simulation']['probability']}%\n\n")
-        else:
-            text += f"🎯 Количество целей: {len(goals)}\n\n"
-        best = max(goal_results, key=lambda
-            x: x["simulation"]["probability"])
-        if best:
-            text += (
-                f"🔥 Самая уверенная цель\n"
-                f"🎯 {best['goal']['name']}\n"
-                f"Вероятность достижения: {best['simulation']['probability']}%\n\n")
-        else:
-            text += f"🎯 Количесвто целей: {len(goals)}\n\n"
+        best = max(
+            goal_results,
+            key=lambda x: x["simulation"]["probability"])
+        text += (
+            f"🎯 Цель с наименьшими шансами\n"
+            f"🎯 {weakest['goal']['name']}\n"
+            f"Вероятность достижения: "
+            f"{weakest['simulation']['probability']}%\n\n")
+        text += (
+            f"🔥 Самая уверенная цель\n"
+            f"🎯 {best['goal']['name']}\n"
+            f"Вероятность достижения: "
+            f"{best['simulation']['probability']}%\n\n")
     else:
         text += "🎯 Добавьте первую финансовую цель\n\n"
     risk_label = "Низкий"
