@@ -1,15 +1,16 @@
 import time
 import asyncio
 import yfinance as yf
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, text, update
 from MainEngines.auto_invest_engine import get_cached_metrics
-from ProjectDataBase.cache import portfolio_data_cache, diagnosis_cache, portfolio_cache
+from ProjectDataBase.cache import portfolio_data_cache, diagnosis_cache, portfolio_cache, PORTFOLIO_VIEW_CACHE
 from ProjectDataBase.models import (Owner, Demo, Portfolio, Position, MarketPrice,
     Transaction, Goal, async_session, PortfolioSettings)
 def make_portfolio_cache_key(positions):
     normalized = sorted(
         [(p["ticker"], round(p["weight"], 4))for p in positions])
     return tuple(normalized)
+
 
 
 def get_portfolio_data_cached(portfolio_id):
@@ -66,6 +67,12 @@ async def create_demo_portfolio(tg_id: int, demo_name: str):
 
 async def buy_position(portfolio_id, ticker, qty, price, category_id):
     async with async_session() as session:
+        if category_id is None:
+            raise ValueError(f"category_id is None for {ticker}")
+        result = await session.execute(text("SELECT current_database()"))
+        print("CURRENT DB =", result.scalar())
+        result = await session.execute(text("SELECT * FROM categories"))
+        print("CATEGORIES =", result.fetchall())
         existing = await session.scalar(
             select(Position).where(
                 Position.portfolio_id == portfolio_id,
@@ -73,18 +80,26 @@ async def buy_position(portfolio_id, ticker, qty, price, category_id):
         if existing:
             total_qty = existing.quantity + qty
             new_avg = (
-                (existing.quantity * existing.average_price + qty * price)/total_qty)
+                (existing.quantity *
+                     existing.average_price +
+                        qty * price)/ total_qty)
             existing.quantity = total_qty
             existing.average_price = new_avg
         else:
-            new_position = Position(
-                portfolio_id=portfolio_id,
-                ticker=ticker,
-                quantity=qty,
-                average_price=price,
-                category_id=category_id)
-            session.add(new_position)
+            session.add(
+                Position(
+                    portfolio_id=portfolio_id,
+                    ticker=ticker,
+                    quantity=qty,
+                    average_price=price,
+                    category_id=category_id))
         await session.commit()
+        result = await session.execute(text("SELECT current_database()"))
+        print("BUY DB =", result.scalar())
+        result = await session.execute(text("SELECT * FROM categories"))
+        print("BUY CATEGORIES =", result.fetchall())
+        await session.commit()
+        PORTFOLIO_VIEW_CACHE.pop(portfolio_id, None)
         portfolio_cache.pop(portfolio_id, None)
         portfolio_data_cache.pop(portfolio_id, None)
         diagnosis_cache.pop(portfolio_id, None)
@@ -107,6 +122,7 @@ async def sell_position(portfolio_id, ticker, qty):
         if position.quantity <= EPS:
             await session.delete(position)
         await session.commit()
+        PORTFOLIO_VIEW_CACHE.pop(portfolio_id, None)
         portfolio_cache.pop(portfolio_id, None)
         portfolio_data_cache.pop(portfolio_id, None)
         diagnosis_cache.pop(portfolio_id, None)
@@ -176,6 +192,7 @@ async def update_cash(portfolio_id: int, new_cash: float):
         portfolio.cash = new_cash
         await recalculate_portfolio_value(portfolio_id)
         await session.commit()
+        diagnosis_cache.pop(portfolio_id, None)
 
 
 async def delete_portfolio(portfolio_id):
@@ -267,6 +284,7 @@ async def execute_rebalance(portfolio_id, trades):
                     price=price,
                     is_buy=False))
         await session.commit()
+        PORTFOLIO_VIEW_CACHE.pop(portfolio_id, None)
         portfolio_cache.pop(portfolio_id, None)
         portfolio_data_cache.pop(portfolio_id, None)
         diagnosis_cache.pop(portfolio_id, None)
@@ -290,6 +308,20 @@ async def add_goal(goal_data):
         await session.commit()
 
 
+async def update_goal(goal_id: int, **kwargs):
+    async with async_session() as session:
+        await session.execute(
+            update(Goal)
+            .where(Goal.id == goal_id)
+            .values(**kwargs))
+        await session.commit()
+
+async def delete_goal(goal_id: int):
+    async with async_session() as session:
+        await session.execute(
+            delete(Goal).where(Goal.id == goal_id))
+        await session.commit()
+
 async def add_cash(portfolio_id: int, amount: float):
     async with async_session() as session:
         portfolio = await session.get(Portfolio, portfolio_id)
@@ -298,13 +330,22 @@ async def add_cash(portfolio_id: int, amount: float):
         portfolio.cash += amount
         await session.commit()
         await recalculate_portfolio_value(portfolio_id)
+        diagnosis_cache.pop(portfolio_id, None)
         return True
 
 
 async def get_stock_price(ticker):
-    data = await asyncio.to_thread(yf.download, ticker, period="1d",
-        interval="1y", progress=False, auto_adjust=True)
-    return float(data["Close"].iloc[-1])
+    def _load():
+        stock = yf.Ticker(ticker)
+        price = stock.fast_info.get("lastPrice")
+        if price is None:
+            info = stock.info
+            price = info.get("currentPrice")
+        return price
+    try:
+        return await asyncio.to_thread(_load)
+    except Exception:
+        return None
 
 
 async def deposit_monthly_budget(portfolio_id, amount):
