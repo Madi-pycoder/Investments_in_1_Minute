@@ -2956,3 +2956,786 @@ Status
 
 Product experience upgraded from
 technical toolkit → consumer-ready investment assistant.
+
+
+
+
+
+
+
+
+
+Entry #60 — ETF Shariah Engine Optimization via Database-Backed Receivables
+
+Date: 2026-06-19
+
+Problem
+
+ETF Shariah analysis became the slowest
+component of the analyzer pipeline.
+
+Performance profiling showed:
+
+ETF INFO-Market: ~6s
+ETF INFO-Risk: ~0.03s
+ETF INFO-Shariah: ~10s
+
+Shariah screening consumed the majority
+of ETF analysis time.
+
+As ETF coverage expanded,
+response times became increasingly dependent
+on external Yahoo Finance requests.
+
+Root Cause
+
+Receivables data was fetched dynamically
+during ETF screening.
+
+For every ETF holding:
+
+ticker
+→ Yahoo balance sheet request
+→ receivables extraction
+
+This created dozens of additional
+network calls during a single ETF analysis.
+
+The bottleneck was not screening logic itself,
+but repeated financial statement retrieval.
+
+Solution
+
+1. Receivables Migrated to Database Layer
+
+Receivables became part of the
+StockFundamentals storage model.
+
+Financial statement data is now collected
+by the market data worker
+and persisted locally.
+
+2. ETF Screening Decoupled from Yahoo Balance Sheets
+
+Removed direct balance sheet requests
+from ETF screening flow.
+
+ETF analysis now consumes:
+
+local fundamentals
+cached financial metrics
+database-backed receivables
+
+instead of live balance sheet downloads.
+
+3. Batch Database Retrieval
+
+Fundamental data for holdings
+is now loaded through a single query.
+
+This replaced dozens of external requests
+with one local database operation.
+
+4. Expanded Receivables Detection
+
+Added support for multiple balance sheet labels:
+
+Net Receivables
+Accounts Receivable
+Accounts Receivable Trade
+Receivables
+
+Improved data coverage across issuers.
+
+Results
+
+Before:
+
+ETF analysis triggered
+multiple balance sheet downloads.
+
+Shariah module became the dominant
+performance bottleneck.
+
+ETF INFO-Shariah:
+~9–10 seconds
+
+After:
+
+Receivables loaded directly
+from local database.
+
+External balance sheet dependency removed
+from ETF analysis path.
+
+ETF INFO-Shariah:
+~3–4 seconds with cache
+
+Significant reduction in
+network-bound latency.
+
+System scalability improved
+for larger ETF universes.
+
+Architectural Insight
+
+Data required for repeated analysis
+should be collected once
+and reused many times.
+
+Market data acquisition
+and investment analysis
+are separate responsibilities.
+
+Moving fundamentals into the database
+transforms external API latency
+into local infrastructure speed.
+
+Status
+
+ETF Shariah Engine upgraded from
+
+live balance-sheet dependency
+→
+database-backed screening architecture.
+
+
+
+
+
+
+
+
+Entry #61 — Universal Fundamentals Auto-Refresh Architecture
+
+Date: 2026-06-20
+
+Problem
+
+Shariah screening quality depended on
+whether a ticker already existed
+inside the local database.
+
+Known assets received:
+
+revenue
+debt
+cash
+receivables
+interest income
+
+Unknown assets often had:
+
+missing fundamentals
+incomplete audits
+lower analysis quality
+
+Result:
+
+The first user analyzing a ticker
+received a worse experience
+than later users.
+
+Root Cause
+
+Fundamental data was updated only for
+tickers already stored inside the system.
+
+The architecture assumed that
+database coverage would grow naturally.
+
+In reality, users constantly introduced
+new assets.
+
+Solution
+
+1. Universal Fundamentals Loader
+
+Implemented automatic database enrichment
+for previously unseen tickers.
+
+2. On-Demand Fundamentals Collection
+
+When required financial data is missing:
+
+retrieve balance sheet
+retrieve income statement
+extract Shariah metrics
+persist to PostgreSQL
+
+before analysis execution.
+
+3. Automatic Refresh Logic
+
+Added freshness validation.
+
+Outdated financial data can now be
+refreshed automatically
+without manual intervention.
+
+4. Database-First Analysis
+
+Screening now prioritizes:
+
+local fundamentals
+cached metrics
+persistent storage
+
+instead of external requests.
+
+Results
+
+Before:
+
+Unknown tickers produced
+incomplete Shariah audits.
+
+Database coverage depended on
+historical user activity.
+
+After:
+
+Any supported ticker can become
+fully analyzable automatically.
+
+Audit consistency improved.
+
+Database quality compounds
+with every new user request.
+
+Architectural Insight
+
+A screening engine should not depend on
+which assets were analyzed yesterday.
+
+The system must continuously expand
+its own knowledge base.
+
+Each user interaction should make
+the platform smarter.
+
+Status
+
+Fundamentals architecture upgraded from
+
+static coverage
+→
+self-expanding financial database.
+
+
+
+
+
+
+
+Entry #62 — Discovery Layer Upgrade via Stock & ETF Categories
+
+Date: 2026-06-22
+
+Problem
+
+Most users entered the analyzer
+without knowing specific tickers.
+
+Asking for a ticker immediately created
+decision friction.
+
+Result:
+
+Users dropped before reaching
+their first analysis.
+
+Root Cause
+
+The analyzer assumed that users already knew:
+
+which asset to research
+which ticker to enter
+where to start
+
+The product optimized for experienced investors,
+not newcomers.
+
+Solution
+
+1. Stock Discovery Categories
+
+Introduced curated stock groups:
+
+Growth Stocks
+Shariah Stocks
+Defensive Stocks
+Popular Stocks
+
+2. ETF Discovery Categories
+
+Introduced curated ETF groups:
+
+Shariah ETFs
+Technology ETFs
+Global ETFs
+Beginner ETFs
+
+3. One-Tap Analysis
+
+Added direct ticker buttons.
+
+Users can launch analysis
+without manual input.
+
+4. Reduced Decision Load
+
+The system now suggests
+starting points instead of
+requiring prior market knowledge.
+
+Results
+
+Before:
+
+User
+→ must know ticker
+→ enter ticker
+→ analyze
+
+After:
+
+User
+→ select category
+→ tap asset
+→ analyze
+
+Fewer steps.
+Lower friction.
+Higher first-analysis completion rate.
+
+Architectural Insight
+
+Users rarely need more options.
+
+They need better defaults.
+
+Discovery is part of the product,
+not a separate feature.
+
+Status
+
+Analyzer upgraded from
+
+search-first experience
+→
+guided discovery experience.
+
+
+
+
+
+
+
+
+Entry #63 — Production State Persistence via Redis Storage
+
+Date: 2026-06-22
+
+Problem
+
+FSM state was stored in application memory.
+
+Any restart, redeploy,
+or server crash could erase:
+
+active conversations
+multi-step workflows
+portfolio flows
+analysis sessions
+
+Result:
+
+User journeys were vulnerable
+to infrastructure events.
+
+Root Cause
+
+MemoryStorage couples user state
+to a single running process.
+
+State disappears whenever
+the process disappears.
+
+Solution
+
+1. Redis Storage Migration
+
+Replaced in-memory FSM storage
+with Redis-backed persistence.
+
+2. Externalized Conversation State
+
+User progress now survives:
+
+deployments
+restarts
+worker recreation
+temporary outages
+
+3. Production-Ready Architecture
+
+Application logic and user state
+became independent systems.
+
+4. Horizontal Scaling Foundation
+
+Multiple bot instances can now
+share the same state layer.
+
+Results
+
+Before:
+
+Deploy
+→ FSM reset
+→ conversations lost
+
+After:
+
+Deploy
+→ FSM preserved
+→ workflows continue
+
+Significantly improved reliability
+for multi-step interactions.
+
+Architectural Insight
+
+Application servers are temporary.
+
+User state is not.
+
+Production systems should treat
+conversation state
+as durable infrastructure.
+
+Status
+
+FSM architecture upgraded from
+
+process memory
+→
+persistent distributed storage.
+
+
+
+
+
+
+
+Entry #64 — Production Infrastructure Migration via Docker Compose
+
+Date: 2026-06-24
+
+Problem
+
+The project depended on a manually configured local environment.
+
+Running the system required:
+
+manual PostgreSQL setup
+Redis installation
+worker startup order
+environment synchronization
+service dependency management
+
+Development and deployment environments could easily diverge.
+
+Infrastructure became one of the largest sources of debugging time.
+
+Root Cause
+
+Application architecture had matured beyond a single-process project,
+but infrastructure remained manually orchestrated.
+
+Each component worked correctly in isolation,
+yet starting the complete platform required extensive manual configuration.
+
+Solution
+
+1. Full Docker Compose Infrastructure
+
+Containerized the complete platform:
+
+Telegram Bot
+Market Worker
+PostgreSQL
+Redis
+
+2. Unified Service Networking
+
+All internal communication moved to Docker networking.
+
+Services now communicate through stable container names
+instead of machine-specific configuration.
+
+3. Automated Startup Dependencies
+
+Infrastructure now starts in the correct order,
+ensuring databases and cache layers become available
+before application services initialize.
+
+4. Reproducible Environment
+
+Entire production stack can now be recreated
+using a single command.
+
+Results
+
+Before:
+
+Environment setup required
+significant manual configuration.
+
+Infrastructure bugs were difficult to reproduce.
+
+Deployment complexity increased with every new service.
+
+After:
+
+Entire platform starts automatically.
+
+Development and production environments
+share the same infrastructure definition.
+
+Deployment became deterministic and reproducible.
+
+Architectural Insight
+
+Application code should not depend on
+how a developer configures their computer.
+
+Infrastructure is part of the product.
+
+Containerization transforms environment configuration
+into version-controlled architecture.
+
+Status
+
+Infrastructure upgraded from
+
+manual local environment
+
+→
+
+containerized production platform.
+
+
+
+
+
+
+
+
+Entry #65 — Probability Engine Refactor via Goal Classification
+
+Date: 2026-06-26
+
+Problem
+
+Goal probability calculations produced unrealistic investment expectations.
+
+Different financial goals were evaluated using
+the same generalized probability model,
+despite having fundamentally different characteristics.
+
+Result:
+
+Users received probability estimates
+that lacked consistency across goal types.
+
+Root Cause
+
+The probability engine treated all investment goals
+as a single category.
+
+Risk profile,
+investment horizon,
+and capital requirements
+were insufficiently differentiated.
+
+Solution
+
+1. Goal Classification Framework
+
+Separated financial goals into
+distinct probability categories.
+
+Each goal type now follows
+its own evaluation logic.
+
+2. Specialized Probability Models
+
+Probability calculations now account for:
+
+investment horizon
+expected return requirements
+contribution schedule
+capital accumulation dynamics
+
+3. Consistent Decision Logic
+
+Unified the evaluation framework,
+allowing different goals to produce
+internally consistent probability estimates.
+
+4. Improved Recommendation Layer
+
+Goal recommendations now align
+with realistic long-term investment behavior.
+
+Results
+
+Before:
+
+Different financial goals
+often received inconsistent probability estimates.
+
+Users could misinterpret investment feasibility.
+
+After:
+
+Probability estimates better reflect
+the characteristics of each objective.
+
+Recommendations became more predictable
+and easier to explain.
+
+Architectural Insight
+
+Financial planning is not a single optimization problem.
+
+Different objectives require
+different evaluation models.
+
+Separating business logic by goal type
+improves both realism
+and future extensibility.
+
+Status
+
+Goal engine upgraded from
+
+generic probability estimation
+
+→
+
+goal-aware probability architecture.
+
+
+
+
+
+
+
+Entry #66 — Global Currency Normalization Framework
+
+Date: 2026-06-26
+
+Problem
+
+Shariah screening produced incorrect financial ratios
+for companies reporting outside the United States.
+
+Debt,
+cash,
+revenue,
+and receivables
+could be stored in local currencies,
+while market capitalization was often reported in USD.
+
+This resulted in invalid ratio calculations
+for international issuers.
+
+Root Cause
+
+Financial metrics were assumed
+to share a common currency.
+
+In reality,
+different Yahoo Finance endpoints
+return values using different currency conventions.
+
+Without explicit normalization,
+financial ratios became unreliable.
+
+Solution
+
+1. Financial Currency Detection
+
+Introduced a dedicated financial currency layer.
+
+Each company now stores
+its reporting currency
+alongside financial statements.
+
+2. FX Conversion Pipeline
+
+Added automatic foreign exchange conversion
+before ratio calculations.
+
+Financial metrics are normalized
+into a common currency
+prior to analysis.
+
+3. Multi-Market Support
+
+Extended compatibility across
+international exchanges,
+including companies reporting in:
+
+TWD
+KRW
+EUR
+and other supported currencies
+
+4. Centralized Currency Logic
+
+Currency conversion became
+a dedicated infrastructure layer
+instead of being scattered
+throughout screening logic.
+
+Results
+
+Before:
+
+International companies could produce
+severely distorted Shariah ratios.
+
+Screening quality depended on
+reporting currency.
+
+After:
+
+Financial ratios remain consistent
+across supported markets.
+
+International Shariah screening
+became significantly more reliable.
+
+Architectural Insight
+
+Financial analysis should compare
+economic values,
+not currency units.
+
+Normalization belongs to the data layer,
+allowing screening logic
+to remain currency-independent.
+
+Status
+
+International screening upgraded from
+
+currency-dependent calculations
+
+→
+
+global normalized financial architecture.
