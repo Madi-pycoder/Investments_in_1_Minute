@@ -1,128 +1,296 @@
-from aiogram import F, Router
-from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup
-from aiogram.fsm.state import StatesGroup, State
-from Portfolio_info.portfolio_compute import compute_portfolio_metrics
-from Portfolio_info.portfolio_data import load_portfolio_data, get_portfolio_data_cached
-from MainEngines.portfolio_view import build_portfolio_text
-from ProjectDataBase.analytics import AnalyticsService
-from ProjectDataBase.cache import (portfolio_cache, portfolio_data_cache, diagnosis_cache,
-    get_portfolio_view_cached, get_cached_diagnosis, PORTFOLIO_VIEW_CACHE, DIAGNOSIS_IN_PROGRESS)
-from VisualFeatures import keyboards as kb
 import asyncio
-import time
-router = Router()
-class Mode(StatesGroup):
-    waiting_for_ticker = State()
-class ProfileSetup(StatesGroup):
-    income = State()
-    budget = State()
-    risk = State()
+from MainMetricsComputingFeatures.riskmanagement import calculate_portfolio_risk, generate_risk_alerts
+from MainEngines.shariah_optimizer import optimize_shariah_portfolio
+from MainEngines.sharpe_optimizer import optimize_by_sharpe
+from MainEngines.halal_portfolio_generator import generate_halal_portfolio
+from MainEngines.portoflio_rebalance import calculate_rebalance
+from MainMetricsComputingFeatures.shariah import calculate_portfolio_purification, shariah_screen
+from Explanation.ai_explain import explain_portfolio_logic
+from MainEngines.goal_engine import (
+    build_goal_based_weights,
+    simulate_multiple_goals, generate_auto_invest_plan,
+    run_what_if_scenarios, generate_smart_nudges,)
+from MarketFeatures.market_regime import detect_market_regime
+from ProfileData.user_profile import get_effective_monthly_budget, get_portfolio_profile
+from ProjectDataBase.market_data_service import get_price_history, update_history
+import numpy as np
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    force=True)
 
-def get_cached(portfolio_id):
-    item = portfolio_cache.get(portfolio_id)
-    if not item:
+def get_auto_invest_monthly(auto_invest):
+    return sum(item["amount"] for item in auto_invest)
+
+
+async def get_market_prices():
+    hist = await get_price_history("SPY")
+    if len(hist) < 30:
+        await update_history("SPY")
+        hist = await get_price_history("SPY")
+    if not hist:
         return None
-    if time.time() - item["ts"] > 30:
+    closes = [
+        h.close
+        for h in hist
+        if h.close is not None]
+    if len(closes) < 30:
         return None
-    return item["data"]
+    return np.array(closes)
 
 
-async def preload_diagnosis(portfolio_id,data):
-    if get_cached_diagnosis(portfolio_id):
-        return
-    if portfolio_id in DIAGNOSIS_IN_PROGRESS:
-        return
-    DIAGNOSIS_IN_PROGRESS.add(portfolio_id)
-    try:
-        metrics = await compute_portfolio_metrics(data)
-        diagnosis_cache[portfolio_id] = {
-            "data": metrics,
-            "ts": time.time()}
-    except Exception as e:
-        print("preload_diagnosis ERROR:", e)
-    finally:
-        DIAGNOSIS_IN_PROGRESS.discard(portfolio_id)
+def build_positions_data(positions, prices, data):
+    positions_data = []
+    total_value = 0
+    stocks = data["stocks_batch"]
+    for p in positions:
+        price = (prices or {}).get(p.ticker)
+        stock = stocks.get(p.ticker, {})
+        if price is None:
+            price = p.average_price or 1
+        value = p.quantity * price
+        total_value += value
+        positions_data.append({
+            "ticker": p.ticker,
+            "value": value,
+            "quantity": p.quantity,
+            "avg_price": p.average_price,
+            "asset_type": stock.get("quoteType"),
+            "price": price})
+    for p in positions_data:
+        p["weight"] = p["value"] / total_value if total_value else 0
+    for p in positions_data:
+        avg = p.get("avg_price", 0)
+        current = p.get("price", 0)
+        if avg:
+            pnl_pct = ((current - avg) / avg) * 100
+            pnl_abs = (current - avg) * p["quantity"]
+        else:
+            pnl_pct = 0
+            pnl_abs = 0
+        p["pnl_pct"] = pnl_pct
+        p["pnl_abs"] = pnl_abs
+    print("BUILD POSITIONS")
+    print([p.ticker for p in positions])
+    return positions_data, total_value
 
-@router.callback_query(F.data == 'portfolio')
-async def show_portfolio(callback: CallbackQuery, state: FSMContext):
-    await callback.answer("📊 Загружаю портфель...")
-    data_state = await state.get_data()
-    portfolio_id = data_state.get("portfolio_id")
-    if portfolio_id is not None:
-        portfolio_id = int(portfolio_id)
-    if not portfolio_id:
-        await callback.message.answer(
-            "💼 У вас пока нет портфеля\n"
-            "Создайте демо-портфель и сможете:\n"
-            "• отслеживать инвестиции\n"
-            "• получать персональные рекомендации\n"
-            "• строить план достижения целей")
-        await callback.message.answer(kb.create_demo)
-        return
-    data = get_portfolio_data_cached(portfolio_id)
-    if not data:
-        data = await load_portfolio_data(portfolio_id)
-        portfolio_data_cache[portfolio_id] = {
-            "data": data,
-            "ts": time.time()}
-    if not portfolio_id:
-        await callback.message.answer(
-            "💼 У вас пока нет портфеля\n"
-            "Создайте демо-портфель и сможете:\n"
-            "• отслеживать инвестиции\n"
-            "• получать персональные рекомендации\n"
-            "• строить план достижения целей")
-        await callback.message.answer(kb.create_demo)
-        return
-    cached = get_cached(portfolio_id)
-    if cached:
-        data, metrics = cached
+
+
+
+def get_top_movers(positions_data):
+    sorted_positions = sorted(positions_data,
+        key=lambda x: x.get("pnl_pct", 0), reverse=True)
+    return sorted_positions[:3], sorted_positions[-3:]
+
+
+
+async def compute_async_insights(positions_data, stocks):
+    tickers = [p["ticker"] for p in positions_data]
+    risk_task = asyncio.create_task(calculate_portfolio_risk(positions_data))
+    sharpe_task = asyncio.create_task(optimize_by_sharpe(tickers[:5]))
+    halal_task = asyncio.create_task(generate_halal_portfolio(tickers[:5], stocks))
+    risk_raw, sharpe, halal = await asyncio.gather(risk_task, sharpe_task,
+        halal_task, return_exceptions=True)
+    if isinstance(risk_raw, Exception) or not risk_raw:
+        risk = {
+            "volatility": 0,
+            "diversification": 0,
+            "concentration": "UNKNOWN",
+            "risk_score": 0}
     else:
-        metrics = get_cached_diagnosis(portfolio_id)
-        if not metrics:
-            metrics = await compute_portfolio_metrics(data)
-            diagnosis_cache[portfolio_id] = {
-                "data": metrics,
-                "ts": time.time()}
-    asyncio.create_task(preload_diagnosis(portfolio_id, data))
-    if not portfolio_id:
-        await callback.message.answer(
-            "💼 У вас пока нет портфеля\n"
-            "Создайте демо-портфель и сможете:\n"
-            "• отслеживать инвестиции\n"
-            "• получать персональные рекомендации\n"
-            "• строить план достижения целей")
-        await callback.message.answer(kb.create_demo)
-        return
-    positions = data.get("positions") or []
-    if not positions:
-        await state.set_state(Mode.waiting_for_ticker)
-        await state.update_data(type="stocks")
-        await callback.message.answer(
-            f"💰 Свободные средства: ${data['portfolio'].cash}\n"
-            "📭 В портфеле пока нет активов.\n\n"
-            "Введите тикер компании\n\n"
-            "ИЛИ выберите готовую подборку 👇",
-            reply_markup=kb.stock_categories)
-        return
-    if not metrics:
-        await callback.message.answer(
-            "⚠️ Не удалось получить часть данных.\n\n"
-            "Показываю упрощённый анализ.")
-        return
-    cached_view = get_portfolio_view_cached(portfolio_id)
-    if cached_view:
-        text, keyboard = cached_view
-    else:
-        text, keyboard = await build_portfolio_text(data, metrics, portfolio_id)
-        PORTFOLIO_VIEW_CACHE[portfolio_id] = {
-            "data": (text, keyboard),
-            "ts": time.time()}
-    await callback.message.answer(text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard))
-    asyncio.create_task(
-        AnalyticsService.track_event(
-            user_id=callback.from_user.id,
-            event_name="portfolio.opened",
-            event_data={"portfolio_id": portfolio_id}))
+        risk = {
+            "volatility": risk_raw.get("volatility") or 0,
+            "diversification": risk_raw.get("diversification") or 0,
+            "concentration": risk_raw.get("concentration") or "UNKNOWN",
+            "risk_score": risk_raw.get("risk_score") or 0}
+    return risk, sharpe, halal
+
+
+
+
+def compute_sector_exposure(positions, prices, stocks, total_value):
+    sector_exposure = {}
+    for p in positions:
+        sector = stocks.get(p.ticker, {}).get("sector", "Other")
+        value = p.quantity * prices.get(p.ticker, 0)
+        sector_exposure[sector] = sector_exposure.get(sector, 0) + value
+    if total_value:
+        sector_exposure = {k: v / total_value for k, v in sector_exposure.items()}
+    top_sector = max(sector_exposure, key=sector_exposure.get, default=None)
+    top_weight = sector_exposure.get(top_sector, 0)
+    return sector_exposure, top_sector, top_weight
+
+
+
+async def compute_goal_insights(positions_data, total_value,
+    goals, risk, portfolio_profile):
+    if not goals:
+        return None, None, [], None
+    cash = getattr(portfolio_profile, "cash", 0)
+    total_capital = total_value + cash
+    vol = (risk.get("volatility") or 15) / 100
+    auto_invest = generate_auto_invest_plan(positions_data,
+        get_effective_monthly_budget(portfolio_profile, total_capital),
+            target_weights=build_goal_based_weights(positions_data, goals, vol))
+    auto_monthly = get_auto_invest_monthly(auto_invest)
+    goal_weights = build_goal_based_weights(positions_data, goals, vol)
+    logging.info(f"goal_weights={goal_weights}")
+    logging.info(f"vol={vol}")
+    goal_results = simulate_multiple_goals(
+        positions_data,
+        total_capital,
+        goals,
+        vol,
+        auto_monthly)
+    goal_scenarios = []
+    for goal in goals:
+        scenarios = run_what_if_scenarios(
+            positions_data, total_capital,
+            goal, vol, auto_monthly)
+        goal_scenarios.append({
+            "goal": goal["name"],
+            "scenarios": scenarios})
+    logging.info(f"monthly_budget={auto_monthly}")
+    nudges = generate_smart_nudges(goal_results)
+    logging.info(f"monthly_budget={auto_monthly}")
+    logging.info(f"auto_monthly={auto_monthly}")
+    logging.info(f"monthly_budget={auto_monthly}")
+    logging.info(f"auto_invest={auto_invest}")
+    logging.info(f"goal_results={goal_results}")
+    return (
+        goal_results,
+        auto_invest,
+        nudges,
+        goal_scenarios)
+
+
+
+def compute_sector_fast(positions, prices, stocks):
+    sector = {}
+    total = 0
+    for p in positions:
+        val = p.quantity * prices.get(p.ticker, 0)
+        if val == 0:
+            continue
+        total += val
+        stock_info = stocks.get(p.ticker, {}) or {}
+        s = (
+            stock_info.get("sector")
+            or stock_info.get("industry")
+            or ("ETF" if stock_info.get("quoteType") == "ETF" else None)
+            or "Other")
+        sector[s] = sector.get(s, 0) + val
+    if total:
+        sector = {k: v / total for k, v in sector.items()}
+    return sector
+
+async def compute_light_metrics(data):
+    positions = data["positions"]
+    prices = data["prices_dict"]
+    stocks = data["stocks_batch"]
+    positions_data, total_value = build_positions_data(positions, prices, data)
+    for p in positions_data:
+        stock = stocks.get(p["ticker"])
+        if not stock:
+            p["shariah_compliant"] = None
+            continue
+        screening = await shariah_screen(stock)
+        p["shariah_compliant"] = (
+                screening["status"] == "СООТВЕТСТВУЕТ ШАРИАТУ ✅")
+    sector_exposure = compute_sector_fast(positions, prices, stocks)
+    risk_raw = await calculate_portfolio_risk(positions_data)
+    volatility = ((risk_raw or {}).get("volatility", 15)) / 100
+    portfolio_total = total_value + data["portfolio"].cash
+    monthly_budget = get_effective_monthly_budget(
+        get_portfolio_profile(data.get("portfolio_id")),
+        portfolio_total)
+    goal_results = simulate_multiple_goals(
+        positions_data,
+        portfolio_total,
+        data.get("goals", []),
+        volatility,
+        monthly_budget)
+    goal_scenarios = []
+
+    for goal in data.get("goals", []):
+        goal_scenarios.append({
+            "goal": goal["name"],
+            "scenarios": run_what_if_scenarios(
+                positions_data, portfolio_total, goal,
+                volatility, monthly_budget)})
+    return {
+        "positions_data": positions_data,
+        "total_value": total_value,
+        "sector_exposure": sector_exposure,
+        "goal_results": goal_results,
+        "goal_scenarios": goal_scenarios}
+
+
+
+
+async def compute_rebalance(positions_data, stocks, total_value):
+    weights = await optimize_shariah_portfolio(positions_data, stocks)
+    if not weights:
+        return None
+    return calculate_rebalance(positions_data, weights, total_value)
+
+
+
+
+async def compute_portfolio_metrics(data):
+    positions = data["positions"]
+    portfolio_id = data.get("portfolio_id")
+    prices = data["prices_dict"]
+    stocks = data["stocks_batch"]
+    goals = data.get("goals") or []
+    portfolio_profile = await get_portfolio_profile(portfolio_id)
+    positions_data, total_value = build_positions_data(positions, prices, data)
+    for p in positions_data:
+        stock = stocks.get(p["ticker"])
+        if not stock:
+            p["shariah_compliant"] = None
+            continue
+        screening = await shariah_screen(stock)
+        p["shariah_compliant"] = (
+            screening["status"] == "СООТВЕТСТВУЕТ ШАРИАТУ ✅")
+    top_gainers, top_losers = get_top_movers(positions_data)
+    risk, sharpe, halal = await compute_async_insights(positions_data, stocks)
+    shariah_rebalance = await compute_rebalance(positions_data, stocks, total_value)
+    sector_exposure, top_sector, top_weight = compute_sector_exposure(
+        positions, prices, stocks, total_value)
+    purification = await calculate_portfolio_purification(
+        positions_data,
+        stocks)
+    portfolio_total = total_value + data["portfolio"].cash
+    goal_results, auto_invest, nudges, goal_scenarios = await compute_goal_insights(positions_data,
+        portfolio_total, goals, risk, portfolio_profile)
+    alerts = generate_risk_alerts(risk)
+    market_prices = await get_market_prices()
+    regime_data = detect_market_regime(market_prices)
+    regime = regime_data["regime"]
+    regime_score = regime_data["score"]
+    explanation = explain_portfolio_logic(positions_data,
+        risk, top_sector, top_weight)
+    return {
+        "positions_data": positions_data,
+        "total_value": total_value,
+        "risk": risk,
+        "goals": goals,
+        "goal_results": goal_results,
+        "nudges": nudges,
+        "sharpe": sharpe,
+        "halal": halal,
+        "shariah_rebalance": shariah_rebalance,
+        "sector_exposure": sector_exposure,
+        "top_sector": top_sector,
+        "top_sector_weight": top_weight,
+        "portfolio_volatility": risk["volatility"],
+        "top_gainers": top_gainers,
+        "top_losers": top_losers,
+        "alerts": alerts,
+        "explanation": explanation,
+        "market_regime": regime,
+        "regime_score": regime_score,
+        "purification": purification,
+        "goal_scenarios": goal_scenarios}
