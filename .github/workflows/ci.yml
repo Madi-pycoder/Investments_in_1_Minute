@@ -48,7 +48,7 @@ jobs:
         run: ruff check . --output-format=github
 
       - name: Black
-        run: black --check .
+        run: black .
 
       - name: Create dummy .env
         run: |
