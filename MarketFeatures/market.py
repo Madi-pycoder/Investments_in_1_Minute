@@ -66,7 +66,7 @@ async def run_blocking(func, *args):
 def last_valid_close(hist):
     try:
         return float(hist["Close"].dropna().iloc[-1])
-    except:
+    except Exception:
         return None
 
 async def get_prices_only(tickers):
@@ -487,7 +487,6 @@ async def get_etf_info(ticker: str):
             "6M": pct(126),
             "1Y": pct(252),
             "5Y": pct(len(hist)-1)}
-        t = Ticker(ticker)
         modules = await asyncio.to_thread(
             lambda: Ticker(ticker).get_modules([
             "fundProfile",

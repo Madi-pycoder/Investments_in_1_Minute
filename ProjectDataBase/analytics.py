@@ -269,5 +269,6 @@ def build_portfolio_event_data(
             "top_sector_weight": round(float(top_sector_weight or 0), 3),
             "cache_hit": bool(cached_metrics),
             "timestamp": datetime.now(timezone.utc).isoformat()}
-        if extra: data.update(extra)
+        if extra:
+            data.update(extra)
         return data

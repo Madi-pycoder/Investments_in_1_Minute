@@ -146,14 +146,12 @@ async def update_history(ticker):
 def get_first_existing(df, keys):
     if df is None or df.empty:
         return None
-
     for key in keys:
         if key in df.index:
             try:
                 return float(df.loc[key].iloc[0])
-            except:
+            except Exception:
                 pass
-
     return None
 
 

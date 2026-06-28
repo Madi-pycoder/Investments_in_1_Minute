@@ -9,7 +9,7 @@ async def get_users_ready_for_auto_invest():
     async with async_session() as session:
         result = await session.scalars(
             select(PortfolioSettings).where(
-                PortfolioSettings.auto_invest_enabled == True,
+                PortfolioSettings.auto_invest_enabled.is_(True),
                 PortfolioSettings.next_auto_invest_at <= datetime.now(timezone.utc)))
         return result.all()
 

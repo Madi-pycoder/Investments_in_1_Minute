@@ -233,8 +233,9 @@ async def custom_goal_amount_start(callback: CallbackQuery,state: FSMContext):
 
 @router.message(GoalQuiz.custom_goal_amount)
 async def custom_goal_amount(message: Message,state: FSMContext):
-    try: amount = float(message.text)
-    except:
+    try:
+        amount = float(message.text)
+    except Exception:
         await message.answer("❌ Введите корректное число")
         return
     await state.update_data(goal_amount=amount)
@@ -258,8 +259,9 @@ async def goal_timeline(callback: CallbackQuery, state: FSMContext):
 
 @router.message(GoalQuiz.custom_goal_timeline)
 async def custom_goal_timeline(message: Message, state: FSMContext):
-    try: years = int(message.text)
-    except:
+    try:
+        years = int(message.text)
+    except Exception:
         await message.answer("❌ Введите корректное число")
         return
     await state.update_data(goal_timeline=years)
@@ -306,7 +308,7 @@ async def goal_finish(callback: CallbackQuery, state: FSMContext):
 async def profile_income(message: Message, state: FSMContext):
     try:
         income = float(message.text)
-    except:
+    except Exception:
         await message.answer("❌ Введите корректное число")
         return
     await update_user_profile(message.from_user.id, income=income)
@@ -318,7 +320,7 @@ async def profile_income(message: Message, state: FSMContext):
 async def profile_budget(message: Message, state: FSMContext):
     try:
         budget = float(message.text)
-    except:
+    except Exception:
         await message.answer("❌ Введите корректное число")
         return
     data = await state.get_data()

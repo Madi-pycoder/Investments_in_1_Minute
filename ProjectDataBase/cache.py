@@ -1,3 +1,4 @@
+import time
 portfolio_data_cache = {}
 FX_CACHE = {}
 STOCKS_CACHE = {}
@@ -24,7 +25,6 @@ ETF_CACHE_TTL = 3600
 DIAGNOSIS_TTL = 300
 PORTFOLIO_VIEW_TTL = 30
 DIAGNOSIS_IN_PROGRESS = set()
-import time
 
 def get_cached(cache, key, ttl):
     item = cache.get(key)
