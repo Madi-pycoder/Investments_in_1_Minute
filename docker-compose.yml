@@ -14,7 +14,7 @@ services:
 
     healthcheck:
       test: ["CMD-SHELL",
-        "pq_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+        "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5

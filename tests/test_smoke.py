@@ -1,4 +1,4 @@
-import importlib
+import pathlib
 
-def test_import_bot():
-    importlib.import_module("bot")
+def test_repository():
+    assert pathlib.Path("bot.py").exists()

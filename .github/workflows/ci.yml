@@ -42,7 +42,7 @@ jobs:
           python -c "import numpy"
 
       - name: Run tests
-        run: pytest test -v
+        run: pytest -v
 
       - name: Ruff
         run: ruff check . --output-format=github
