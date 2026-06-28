@@ -15,14 +15,51 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      - name: Compile
+      - name: Install CI tools
+        run: |
+          pip install pytest ruff black
+
+      - name: Check Python syntax
         run: python -m compileall .
 
-      - name: Build Docker
+      - name: Build Docker image
         run: docker build -t investments-bot .
+
+      - name: Verify imports
+        run: |
+          python -c "import aiogram"
+          python -c "import sqlalchemy"
+          python -c "import pandas"
+          python -c "import numpy"
+
+      - name: Run tests
+        run: pytest test -v
+
+      - name: Ruff
+        run: ruff check . --output-format=github
+
+      - name: Black
+        run: black --check .
+
+      - name: Create dummy .env
+        run: |
+          cat <<EOF > .env
+          TOKEN=dummy
+          REDIS_URL=redis://localhost:6379
+          POSTGRES_USER=test
+          POSTGRES_PASSWORD=test
+          POSTGRES_DB=test
+          DATABASE_URL=postgresql://test:test@localhost/test
+          DB_URL_POSTGRES=postgresql://test:test@postgres/test
+          EOF
+
+      - name: Validate docker-compose
+        run: docker compose config
