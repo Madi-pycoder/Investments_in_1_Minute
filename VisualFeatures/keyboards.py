@@ -53,7 +53,7 @@ portfolio_dashboard = InlineKeyboardMarkup(
             text="🚀 Авто-Инвестиции",
             callback_data="auto_invest")],
         [InlineKeyboardButton(
-            text="🧮 Сценарии",
+            text="🎯 Цели",
             callback_data="what_if")],
         [InlineKeyboardButton(
             text="🔄 Мои Портфели",
@@ -319,7 +319,7 @@ after_show_portfolio = InlineKeyboardMarkup(
             text="🚀 Авто-Инвестиции",
             callback_data="auto_invest")],
         [InlineKeyboardButton(
-            text="🧮 Сценарии",
+            text="🎯 Цели",
             callback_data="what_if")],
         [InlineKeyboardButton(
             text="🔄 Мои Портфели",
