@@ -297,7 +297,10 @@ async def analyze_ticker(message: Message, state: FSMContext):
      За 1 год: {data['growth']['1Y']}%
      За 5 лет: {data['growth']['5Y']}%
             
-    👇 Что дальше?
+    👇 Первый анализ готов.
+
+    Следующий шаг поможет понять,
+    стоит ли покупать этот актив именно вам.
             """
         await message.answer(text, reply_markup=kb.after_analysis)
         await state.update_data(
@@ -386,7 +389,10 @@ async def analyze_ticker(message: Message, state: FSMContext):
     За 1 год: {data['growth']['1Y']}%
     За 5 лет: {data['growth']['5Y']}%
             
-        👇 Что дальше?
+        👇 Первый анализ готов.
+
+        Следующий шаг поможет понять,
+        стоит ли покупать этот актив именно вам.
         """
         await message.answer(text, reply_markup=kb.after_analysis)
         await state.update_data(
