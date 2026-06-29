@@ -10,7 +10,13 @@ maind = InlineKeyboardMarkup(
             callback_data="etfs")],
         [InlineKeyboardButton(
             text="💼 Мой Портфель",
-            callback_data="portfolio_hub")]])
+            callback_data="portfolio_hub")],
+        [InlineKeyboardButton(
+            text="❓ FAQ",
+            callback_data="faq"),
+        InlineKeyboardButton(
+            text="ℹ️ О проекте",
+            callback_data="about")]])
 
 
 after_analysis = InlineKeyboardMarkup(

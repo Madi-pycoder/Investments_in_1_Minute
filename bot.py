@@ -18,6 +18,7 @@ from Portfolio_Handlers.portfolio_rebalance_handler import (
     router as portfolio_reb_router)
 from Portfolio_Handlers.portfolio_brain_handler import (
     router as portfolio_brain_router)
+from VisualFeatures.projectinfo import router as project_info_router
 from MainEngines.scheduler import start_scheduler
 
 
@@ -37,6 +38,7 @@ async def main():
     dp.include_router(portfolio_sim_router)
     dp.include_router(portfolio_reb_router)
     dp.include_router(portfolio_brain_router)
+    dp.include_router(project_info_router)
     print("🚀 Bot started")
     await dp.start_polling(bot)
 
