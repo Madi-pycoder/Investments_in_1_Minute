@@ -35,7 +35,8 @@ async def notification_job(bot):
     users = await get_all_users()
     for user in users:
         try:
-            await bot.send_message(user.tg_id, get_notification())
+            text = await get_notification(user)
+            await bot.send_message(user, text)
         except Exception:
             pass
 

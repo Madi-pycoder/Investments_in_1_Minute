@@ -1,55 +1,143 @@
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from sqlalchemy import select
+from ProjectDataBase.models import (async_session, UserProfileDB, Portfolio,
+    Goal, PortfolioSettings, AnalyticsEvent, Position)
 import random
 
-NOTIFICATIONS = {
-    "education": [
-        "📚 Знаете ли вы?\n\nБольшинство инвесторов проигрывают не из-за плохих акций, а из-за эмоций.",
-        "📚 Инвестиционный факт\n\nДаже небольшие ежемесячные инвестиции могут значительно вырасти за долгий срок благодаря сложному проценту.",
-        "📚 Полезно знать\n\nВысокая доходность всегда сопровождается повышенным риском.",
-        "📚 Напоминание\n\nДиверсификация обычно снижает риск портфеля.",
-        "📚 Совет недели\n\nПроверяйте компанию, а не только рост её цены.",
-        "📚 Многие забывают\n\nПокупать хорошие компании зачастую важнее, чем угадывать идеальный момент входа.",
-        "📚 Интересный факт\n\nETF позволяют инвестировать сразу в десятки или сотни компаний.",
-        "📚 Напоминание\n\nДаже успешные инвесторы совершают ошибки. Главное — не повторять их постоянно."],
-    "portfolio": [
-        "💼 Загляните в портфель.\n\nВозможно, некоторые позиции уже требуют внимания.",
-        "📊 Давно не проверяли свой портфель.\n\nПара минут сегодня может избавить от ошибок завтра.",
-        "🧠 Хотите узнать, можно ли улучшить ваш портфель?\n\nНажмите «Что улучшить?»",
-        "⚡ Возможно, сейчас есть более эффективное распределение активов.",
-        "📈 Проверьте, изменился ли уровень риска вашего портфеля.",
-        "💡 Иногда одно небольшое изменение делает портфель значительно устойчивее.",
-        "🔄 Возможно, пришло время ребалансировки.",
-        "📊 Ваш финансовый план работает лучше, если регулярно его пересматривать."],
-    "motivation": [
-        "🚀 Большой капитал редко появляется за одну удачную сделку.\nОбычно его создаёт дисциплина.",
-        "🌱 Даже небольшая инвестиция сегодня лучше, чем идеальный момент завтра.",
-        "📈 Последовательность зачастую важнее доходности.",
-        "💡 Инвестирование — это марафон, а не спринт.",
-        "🏆 Лучший день начать инвестировать был раньше. Второй лучший — сегодня.",
-        "🌍 Финансовая свобода строится постепенно.",
-        "📅 Маленькие шаги каждую неделю дают большой результат через годы.",
-        "🎯 Не пытайтесь победить рынок каждый месяц. Побеждайте на длинной дистанции."],
-    "shariah": [
-        "🕌 Напоминание\n\nСоответствие Шариату — это не только отсутствие процентов, но и качество бизнеса.",
-        "🕌 Хотите проверить новую компанию на соответствие Шариату?\nЭто занимает меньше минуты.",
-        "📚 Исламские инвестиции также требуют диверсификации.",
-        "🕌 Даже соответствующие Шариату активы могут иметь высокий риск.",
-        "🕌 Проверяйте актуальность данных компании перед инвестированием.",
-        "📖 Финансовые показатели компаний могут изменяться со временем.",
-        "🕌 Регулярная проверка помогает поддерживать соответствие портфеля.",
-        "📚 Соответствие Шариату — лишь один из факторов хорошей инвестиции."],
-    "analysis": [
-        "🔍 Есть компания, которая давно интересовала?\nПроверьте её за 30 секунд.",
-        "📈 Попробуйте проанализировать новую акцию сегодня.",
-        "🧩 ETF тоже могут сильно отличаться между собой.\nСравните несколько фондов.",
-        "📊 Иногда самый очевидный актив оказывается не самым выгодным.",
-        "🔎 Один анализ сегодня может сэкономить тысячи в будущем.",
-        "💡 Проверка риска занимает меньше минуты.",
-        "📈 Посмотрите, изменились ли показатели ваших любимых компаний.",
-        "📊 Новые инвестиционные идеи лучше проверять заранее."]}
+NEW = [
+"👋 Добро пожаловать! Попробуйте создать первую цель.",
+"🚀 Начните путь к инвестициям с небольшой цели.",
+"📈 Первый анализ занимает меньше минуты."]
+GOALS = [
+"🎯 Добавьте финансовую цель — рекомендации станут точнее.",
+"💰 Даже небольшая цель помогает собрать лучший портфель.",
+"📊 Цель — это основа инвестиционного плана."]
+PORTFOLIO = [
+"📦 Самое время собрать первый портфель.",
+"🧩 Добавьте первый актив и получите рекомендации.",
+"📈 Портфель откроет функции ребалансировки."]
+REBALANCE = [
+"⚖️ Проверьте, не пора ли ребалансировать портфель.",
+"📊 Доли активов могли измениться.",
+"🛡 Ребалансировка помогает удерживать риск."]
+AUTO = [
+"🤖 Автоинвест может экономить ваше время.",
+"💵 Попробуйте автоматические покупки.",
+"📈 Пусть портфель растёт регулярно."]
+INACTIVE = [
+"👋 Давно не виделись.",
+"📊 За это время рынок изменился.",
+"🚀 Посмотрите новые возможности."]
+GROWTH = [
+"🚀 Возможно появились новые компании роста.",
+"📈 Посмотрите свежие идеи для роста."]
+SAFE = [
+"🛡 Проверьте устойчивые ETF.",
+"📦 Возможно пора снизить риск."]
+BALANCED = [
+"⚖️ Проверьте баланс портфеля.",
+"📊 Иногда небольшая корректировка даёт большой эффект."]
+TICKER = [
+"📈 Хотите снова посмотреть {ticker}?",
+"🔍 Последний раз вы анализировали {ticker}.",
+"📊 Возможно показатели {ticker} уже изменились."]
 
 
 
-def get_notification(category=None):
-    if category is None:
-        category = random.choice(list(NOTIFICATIONS.keys()))
-    return random.choice(NOTIFICATIONS[category])
+@dataclass
+class NotificationContext:
+    user_id: int
+    has_portfolio: bool
+    positions_count: int
+    has_goal: bool
+    goals_count: int
+    auto_invest: bool
+    last_analysis_days: int | None
+    last_rebalance_days: int | None
+    last_open_days: int | None
+    investment_style: str
+    portfolio_value: float
+    first_analysis_done: bool
+    first_goal_done: bool
+    first_rebalance_done: bool
+    first_auto_done: int
+    last_ticker_analyzed: str | None
+    last_ticker: str | None
+
+
+async def build_context(user_id: int):
+    async with async_session() as session:
+        profile = await session.get(UserProfileDB, user_id)
+        portfolio = await session.scalar(
+            select(Portfolio).join_from(Portfolio, Portfolio, isouter=True)
+            .where(Portfolio.owner_id == user_id))
+        if portfolio:
+            positions = await session.scalars(select(Position)
+                .where(Position.portfolio_id == portfolio.id)).all()
+            goals = await session.scalars(select(Goal)
+                .where(Goal.portfolio_id == portfolio.id)).all()
+            settings = await session.get(PortfolioSettings, portfolio.id)
+        else:
+            positions = []
+            goals = []
+            settings = None
+        analysis = await session.scalar(select(AnalyticsEvent)
+            .where(AnalyticsEvent.user_id == user_id,
+                   AnalyticsEvent.event_name == "analysis.completed")
+            .order_by(AnalyticsEvent.created_at.desc()))
+        rebalance = await session.scalar(
+            select(AnalyticsEvent)
+            .where(AnalyticsEvent.user_id == user_id,
+                   AnalyticsEvent.event_name == "portfolio.rebalanced")
+            .order_by(AnalyticsEvent.created_at.desc()))
+
+        def days(event):
+            if event is None:
+                return None
+            return (datetime.now(timezone.utc) - event.created_at).days
+
+        ticker = None
+        if analysis and analysis.event_data:
+            ticker = analysis.event_data.get("ticker")
+        return NotificationContext(
+            user_id=user_id,
+            has_portfolio=portfolio is not None,
+            positions_count=len(positions),
+            has_goal=len(goals) > 0,
+            goals_count=len(goals),
+            auto_invest=settings.auto_invest_enabled if settings else False,
+            last_analysis_days=days(analysis),
+            last_rebalance_days=days(rebalance),
+            investment_style=profile.investment_style,
+            portfolio_value=portfolio.total_value if portfolio else 0,
+            first_analysis_done=profile.first_analysis_done,
+            first_goal_done=profile.first_goal_done,
+            first_rebalance_done=profile.first_rebalance_done,
+            first_auto_done=profile.first_auto_invest_done,
+            last_ticker=ticker)
+
+
+
+async def get_notification(user_id: int):
+    ctx = await build_context(user_id)
+    if not ctx.first_analysis_done:
+        return random.choice(NEW)
+    if not ctx.has_goal:
+        return random.choice(GOALS)
+    if not ctx.has_portfolio:
+        return random.choice(PORTFOLIO)
+    if not ctx.last_rebalance_days and ctx.last_rebalance_days > 30:
+        return random.choice(REBALANCE)
+    if not ctx.auto_invest:
+        return random.choice(AUTO)
+    if ctx.last_analysis_days and ctx.last_analysis_days > 14:
+        return random.choice(INACTIVE)
+    if ctx.last_ticker:
+        return random.choice(TICKER).format(ticker=ctx.last_ticker)
+    if ctx.investment_style == "growth":
+        return random.choice(GROWTH)
+    if ctx.investment_style == "safe":
+        return random.choice(SAFE)
+
+    return random.choice(BALANCED)
