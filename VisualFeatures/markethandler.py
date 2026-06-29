@@ -15,7 +15,7 @@ from MainMetricsComputingFeatures.riskmanagement import get_risk_metrics_cached,
 from VisualFeatures.renderer import format_shariah, format_money, format_percent, risk_bar
 from VisualFeatures.charts import generate_asset_growth_graph
 from VisualFeatures import keyboards as kb
-
+from ProfileData.user_profile import get_user_profile, update_user_profile
 
 class Mode(StatesGroup):
     waiting_for_ticker = State()
@@ -303,6 +303,17 @@ async def analyze_ticker(message: Message, state: FSMContext):
     стоит ли покупать этот актив именно вам.
             """
         await message.answer(text, reply_markup=kb.after_analysis)
+        profile = await get_user_profile(message.from_user.id)
+        if profile and not profile.first_analysis_done:
+            await message.answer(
+                "🎉 Отлично!\n\n"
+                "Вы уже умеете проверять акции и ETF.\n\n"
+                "Но анализ одного актива — это только начало.\n\n"
+                "Большинство инвесторов теряют деньги не потому, что выбирают плохие акции.\n"
+                "А потому что не умеют собрать весь портфель.\n\n"
+                "Следующий шаг занимает около минуты 👇",
+                reply_markup=kb.after_first_analysis)
+            await update_user_profile(message.from_user.id, first_analysis_done=True)
         await state.update_data(
             last_ticker=data["ticker"],
             last_price=data["price"])
@@ -395,6 +406,17 @@ async def analyze_ticker(message: Message, state: FSMContext):
         стоит ли покупать этот актив именно вам.
         """
         await message.answer(text, reply_markup=kb.after_analysis)
+        profile = await get_user_profile(message.from_user.id)
+        if profile and not profile.first_analysis_done:
+            await message.answer(
+                "🎉 Отлично!\n\n"
+                "Вы уже умеете проверять акции и ETF.\n\n"
+                "Но анализ одного актива — это только начало.\n\n"
+                "Большинство инвесторов теряют деньги не потому, что выбирают плохие акции.\n"
+                "А потому что не умеют собрать весь портфель.\n\n"
+                "Следующий шаг занимает около минуты 👇",
+                reply_markup=kb.after_first_analysis)
+            await update_user_profile(message.from_user.id, first_analysis_done=True)
         await state.update_data(
             last_ticker=ticker,
             last_price=data["price"],

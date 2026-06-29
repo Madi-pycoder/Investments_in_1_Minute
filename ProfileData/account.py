@@ -172,14 +172,13 @@ async def cmd_regend(message: Message, state: FSMContext):
     await state.clear()
     await state.update_data(portfolio_id=portfolio_id)
     await message.answer(
-        "🚀 Всё готово!\n\n"
-        "Теперь вы можете:\n"
-        "• Анализировать портфель\n"
-        "• Получать рекомендации\n"
-        "• Ставить финансовые цели\n"
-        "• Следить за прогрессом\n"
-        "• Планировать регулярные вложения",
-        reply_markup=kb.portfolio_dashboard)
+        "🎉 Портфель создан.\n\n"
+        "Теперь бот сможет:\n"
+        "✅ подсказывать ошибки\n"
+        "✅ предлагать улучшения\n"
+        "✅ рассчитывать распределение\n\n"
+        "👇 Попробуйте первую рекомендацию",
+        reply_markup=kb.after_create_demo)
 
 @router.callback_query(F.data == "goal_settings")
 async def goal_start(callback: CallbackQuery, state: FSMContext):
@@ -285,12 +284,12 @@ async def goal_finish(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_data({"portfolio_id": portfolio_id})
     await callback.message.answer(
-        f"✅ Цель добавлена!\n\n"
-        f"🎯 {goal['name']}\n"
-        f"💰 Целевая сумма: ${goal['amount']}\n"
-        f"⏳ Срок: {goal['years']} лет\n"
-        f"🕌 Режим: {compliance.title()}",
-        reply_markup=kb.portfolio_dashboard)
+        "🎯 Отлично."
+        "Теперь портфель знает,"
+        "ради чего вы инвестируете."
+        "Теперь можно автоматически проверять,"
+        "успеваете ли вы к своей цели.",
+        reply_markup=kb.after_create_goal)
     asyncio.create_task(
         AnalyticsService.track_event(
             user_id=callback.from_user.id,

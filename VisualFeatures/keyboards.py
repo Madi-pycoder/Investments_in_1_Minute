@@ -318,9 +318,46 @@ after_show_portfolio = InlineKeyboardMarkup(
         [InlineKeyboardButton(
             text="🔄 Мои Портфели",
             callback_data="portfolio_hub"),
-            InlineKeyboardButton(
+        InlineKeyboardButton(
                 text="➕ Добавить Цель",
                 callback_data="goal_settings")],
         [InlineKeyboardButton(
             text="🏠 Главное меню",
+            callback_data="main_menu")]])
+
+
+
+
+after_first_analysis = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(
+            text="💼 Создать первый портфель",
+            callback_data="create_demo")],
+        [InlineKeyboardButton(
+            text="🎯 Добавить финансовую цель",
+            callback_data="goal_settings")],
+        [InlineKeyboardButton(
+            text="🏠 Пока вернуться в меню",
+            callback_data="main_menu")]])
+
+
+after_create_demo = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🧠 Что улучшить?",
+            callback_data="financial_brain")],
+        [InlineKeyboardButton(
+            text="🏠 Пока вернуться в меню",
+            callback_data="main_menu")]])
+
+
+
+after_create_goal = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(
+            text="⚡ Быстро исправить",
+            callback_data="goal_fix"
+        )],
+        [InlineKeyboardButton(
+            text="🏠 Пока вернуться в меню",
             callback_data="main_menu")]])
