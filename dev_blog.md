@@ -284,7 +284,7 @@ Login portfolio choice
 
 
 
-Entry #15 - Architecture udpate
+Entry #15 - Architecture update
 
 Date: 2026-02-23
 
@@ -292,7 +292,7 @@ Optimized architecture after project's volume size reached to 900 lines
 
 Divided handlers.py into:
 
-mainstart.py - starting funtions
+mainstart.py - starting functions
 
 markethandler.py - market data
 
@@ -518,7 +518,7 @@ Excessive concentration
 
 
 
-Entry #23 - Portfolio Perfomance Optimization
+Entry #23 - Portfolio Performance Optimization
 
 Date: 2026-03-10
 
@@ -953,7 +953,7 @@ Eliminated duplicate market data requests
 Reduced API overhead significantly
 
 	2.	Async Optimization
-Parallelized heavy computations using asyncio.gather
+Parallelized heavy computations using asyncio.gather()
 Moved blocking operations to threads (asyncio.to_thread)
 Improved responsiveness of bot
 
@@ -1046,7 +1046,7 @@ Features:
 Results:
 
 User can grow his net worth
-Chances of goal achievment rised
+Chances of goal achievement risen
 UX upgrade
 
 
@@ -1274,7 +1274,7 @@ Problem:
 
 Auto-Invest system technically worked, but produced unusable plans:
 
-Extremely small allocations ($0.28, $0.53, etc.)
+Tiny allocations ($0.28, $0.53, etc.)
 Fixed monthly amount ($300) ignored real goal requirements
 No connection to actual goal feasibility
 Didn’t reflect user’s financial reality
@@ -1463,7 +1463,7 @@ System could generate recommendations, but not act:
 
 * Auto-Invest was only simulation
 * “Enable Auto-Invest” wasn't doing anything
-* User didn't know what to do afterwards
+* User didn't know what to do afterward
 
 
 Solution:
@@ -1690,7 +1690,7 @@ Result:
 
 Solution:
 
-Rebuilt Market Regime as a multi-factor scoring system.
+Rebuilt Market Regime as a multifactor scoring system.
 
 1. Multi-Factor Model
 Introduced independent signals:
@@ -2023,7 +2023,7 @@ A weak architecture destroys good models.
 
 
 Status:
-Core AI infrastructue stabilized
+Core AI infrastructure stabilized
 and hardened against edge cases.
 
 
@@ -2198,7 +2198,7 @@ Reduced onboarding friction dramatically.
 
 3. Financial Brain Rewrite
 Rebuilt Financial Brain into:
-  multi-dimensional portfolio intelligence layer.
+  multidimensional portfolio intelligence layer.
 New analysis systems:
   Goal pressure analysis
   Risk alignment
@@ -3345,7 +3345,7 @@ Any restart, redeploy,
 or server crash could erase:
 
 active conversations
-multi-step workflows
+multistep workflows
 portfolio flows
 analysis sessions
 
@@ -3403,7 +3403,7 @@ Deploy
 → workflows continue
 
 Significantly improved reliability
-for multi-step interactions.
+for multi-\step interactions.
 
 Architectural Insight
 
@@ -3921,7 +3921,7 @@ instead of reaching a dead end.
 Implemented personalized notifications
 based on each user’s activity,
 portfolio state,
-investment behaviour,
+investment behavior,
 and completed milestones.
 
 Notifications now encourage
