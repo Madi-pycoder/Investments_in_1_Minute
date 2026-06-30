@@ -3,7 +3,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
-from ProjectDataBase.models import Base, DATABASE_URL
+from ProjectDataBase.models import Base
+from config import DATABASE_URL
 config = context.config
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 if config.config_file_name is not None:

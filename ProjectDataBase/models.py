@@ -170,6 +170,7 @@ class UserProfileDB(Base):
     first_analysis_done: Mapped[bool] = mapped_column(Boolean, default=False)
     first_rebalance_done: Mapped[bool] = mapped_column(Boolean, default=False)
     first_auto_invest_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    welcome_completed: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class AnalyticsEvent(Base):
@@ -229,9 +230,7 @@ class PortfolioSettings(Base):
 
 
 
-async def async_main():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+async def seed_categories():
     async with async_session() as session:
         stocks = await session.scalar(
             select(Category).where(Category.name == "Stocks"))

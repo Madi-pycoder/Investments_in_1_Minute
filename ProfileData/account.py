@@ -284,10 +284,10 @@ async def goal_finish(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_data({"portfolio_id": portfolio_id})
     await callback.message.answer(
-        "🎯 Отлично."
-        "Теперь портфель знает,"
-        "ради чего вы инвестируете."
-        "Теперь можно автоматически проверять,"
+        "🎯 Отлично.\n\n"
+        "Теперь портфель знает,\n"
+        "ради чего вы инвестируете.\n\n"
+        "Теперь можно автоматически проверять,\n"
         "успеваете ли вы к своей цели.",
         reply_markup=kb.after_create_goal)
     asyncio.create_task(

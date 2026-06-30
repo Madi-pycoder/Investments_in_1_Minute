@@ -13,6 +13,7 @@ from MainEngines.robo_engine import RoboAdvisor
 from MainEngines.auto_invest_engine import run_auto_invest_for_user, get_cached_metrics
 import time
 import ProjectDataBase.backend as rq
+import VisualFeatures.keyboards as kb
 
 router = Router()
 AUTO_INVEST_MESSAGES = {
@@ -208,10 +209,10 @@ async def start_auto_invest(callback: CallbackQuery, state: FSMContext):
         text = "✅ План успешно выполнен\n\n"
         for t in result["trades"]:
             text += f"• Куплено на ${t['amount']} → {t['ticker']}\n"
-        text += "\n🔄 Автоинвестирование включено"
+        text += "\n🔄 Автоинвестирование включено\n\n"
         text += ("⚠️ План сформирован автоматически на основе"
                  " ваших настроек и состава портфеля.")
-        await callback.message.answer(text)
+        await callback.message.answer(text, reply_markup=kb.login_demo)
     else:
         message = AUTO_INVEST_MESSAGES.get(status,
             "Произошла неизвестная ошибка")

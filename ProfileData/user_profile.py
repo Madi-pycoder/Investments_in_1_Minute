@@ -10,6 +10,7 @@ from ProjectDataBase.models import (UserProfileDB,
 class UserProfile:
     user_id: int
     income: Optional[float] = None
+    welcome_completed: bool = False
 
 
 @dataclass
@@ -68,7 +69,8 @@ async def update_user_profile(user_id: int, **kwargs):
 def db_to_user_profile(db: UserProfileDB):
     return UserProfile(
         user_id=db.user_id,
-        income=db.income)
+        income=db.income,
+        welcome_completed=db.welcome_completed)
 
 
 async def create_portfolio_profile(portfolio_id: int):

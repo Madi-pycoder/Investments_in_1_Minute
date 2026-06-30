@@ -5,7 +5,8 @@ from aiogram.fsm.state import StatesGroup, State
 from Portfolio_info.portfolio_compute import compute_portfolio_metrics
 from Portfolio_info.portfolio_data import load_portfolio_data
 from ProjectDataBase.analytics import AnalyticsService, build_portfolio_event_data
-from ProjectDataBase.cache import diagnosis_cache, rebalance_preview_cache, goal_fix_preview_cache
+from ProjectDataBase.cache import diagnosis_cache, rebalance_preview_cache, goal_fix_preview_cache, \
+    portfolio_data_cache, PORTFOLIO_VIEW_CACHE
 from MainEngines.portoflio_rebalance import calculate_rebalance
 from MarketFeatures.market import get_stocks_batch
 from ProjectDataBase.market_data_service import get_bulk_prices
@@ -167,10 +168,9 @@ async def rebalance_now(callback: CallbackQuery, state: FSMContext):
         "prices_dict": prices_dict}
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="✅ Применить изменения",
-                    callback_data="confirm_rebalance")]])
+            [InlineKeyboardButton(
+                text="✅ Применить изменения",
+                callback_data="confirm_rebalance")]])
     text_preview = build_rebalance_preview(trades, comparison)
     await callback.message.answer(
         text_preview,
@@ -335,12 +335,7 @@ async def goal_fix(callback: CallbackQuery, state: FSMContext):
         text += "\n\n"
     text += (
         f"🎯 Вероятность достижения цели\n"
-        f"Сейчас: {old_prob:.0f}%\n"
-        f"После изменений: {new_prob:.0f}%\n\n"
-        f"📊 Волатильность портфеля\n"
-        f"{old_risk:.0f}% → {new_risk:.0f}%\n\n"
-        f"💰 Рекомендуемое пополнение\n"
-        f"+${best['monthly_boost']}/мес")
+        f"Сейчас: {old_prob:.0f}%\n")
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(
@@ -367,12 +362,18 @@ async def confirm_goal_fix(callback: CallbackQuery, state: FSMContext):
         preview["trades"])
     await callback.message.answer(
         "✅ План применён\n\n"
-        f"🎯 Вероятность достижения цели:\n"
-        f"{preview['old_prob']:.0f}% → "
-        f"{preview['new_prob']:.0f}%\n\n"
-        f"📊 Волатильность портфеля\n"
-        f"{preview['old_risk']:.0f}% → "
-        f"{preview['new_risk']:.0f}%\n\n"
-        f"💰 Рекомендуемое пополнение:\n"
-        f"+${preview['monthly_boost']}/mo")
+        "📊 Пересчитываю показатели портфеля...")
+    portfolio_data_cache.pop(portfolio_id, None)
+    diagnosis_cache.pop(portfolio_id, None)
+    PORTFOLIO_VIEW_CACHE.pop(portfolio_id, None)
+    data = await load_portfolio_data(portfolio_id)
+    metrics = await compute_portfolio_metrics(data)
+    new_prob = metrics["goal_results"][0]["simulation"]["probability"]
+    new_risk = metrics["portfolio_volatility"]
+    await callback.message.answer(
+        "✅ План применён\n\n"
+        f"🎯 Вероятность достижения цели\n"
+        f"{preview['old_prob']:.0f}% → {new_prob:.0f}%\n\n"
+        f"📊 Волатильность\n"
+        f"{preview['old_risk']:.0f}% → {new_risk:.0f}%")
     diagnosis_cache.pop(portfolio_id, None)

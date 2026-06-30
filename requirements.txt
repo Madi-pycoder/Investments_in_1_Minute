@@ -12,3 +12,5 @@ scipy==1.17.1
 SQLAlchemy==2.0.46
 yahooquery==2.4.1
 yfinance==1.2.0
+greenlet
+dotenv

@@ -85,7 +85,8 @@ async def process_trade(message: Message, state: FSMContext):
         await rq.buy_position(portfolio_id, ticker, qty, price, category_id=category.id)
         await rq.update_cash(portfolio_id, portfolio.cash - total)
         await rq.add_transaction(portfolio_id, ticker, qty, price, True)
-        await message.answer(f"✅ Куплено: {qty} {ticker} на сумму ${total}")
+        await message.answer(f"✅ Куплено: {qty} {ticker} на сумму ${total}",
+            reply_markup=kb.login_demo)
         await state.clear()
     else:
         success, msg = await rq.sell_position(portfolio_id, ticker, qty)
@@ -95,7 +96,8 @@ async def process_trade(message: Message, state: FSMContext):
             return
         await rq.update_cash(portfolio_id, portfolio.cash + total)
         await rq.add_transaction(portfolio_id, ticker, qty, price, False)
-        await message.answer(f"✅ Продано: {qty} акций {ticker} на сумму ${total}")
+        await message.answer(f"✅ Продано: {qty} акций {ticker} на сумму ${total}",
+            reply_markup=kb.login_demo)
         await state.clear()
 
 
@@ -161,7 +163,8 @@ async def sell_quantity(message: Message, state: FSMContext):
     total = qty * price
     await rq.update_cash(data["portfolio_id"], portfolio.cash + total)
     await rq.add_transaction(data["portfolio_id"], data["sell_ticker"], qty, price, False)
-    await message.answer(f"✅ Продано: {qty} акицй {data['sell_ticker']}")
+    await message.answer(f"✅ Продано: {qty} акицй {data['sell_ticker']}",
+        reply_markup=kb.login_demo)
     await state.clear()
 
 
@@ -188,6 +191,7 @@ async def sell_percentage(callback, state):
     if success:
         await rq.update_cash(data["portfolio_id"], portfolio.cash+total)
         await rq.add_transaction(data["portfolio_id"], data["sell_ticker"], qty, price, False)
-        await callback.message.answer(f"✅ Проадно: {percent}% доли акции {data['sell_ticker']}")
+        await callback.message.answer(f"✅ Продано: {percent}% доли акции {data['sell_ticker']}",
+            reply_markup=kb.login_demo)
     else:
         await callback.message.answer(msg)

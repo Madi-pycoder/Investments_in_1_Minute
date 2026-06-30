@@ -3,6 +3,8 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
+
+from ProfileData.user_profile import get_user_profile, create_user_profile, update_user_profile
 from VisualFeatures import keyboards as kb
 from ProjectDataBase import backend as rq
 
@@ -17,6 +19,14 @@ class WelcomeQuiz(StatesGroup):
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await rq.set_user(message.from_user.id)
+    profile = await get_user_profile(message.from_user.id)
+    if profile is None:
+        profile = await create_user_profile(message.from_user.id)
+    if profile.welcome_completed:
+        await state.clear()
+        await message.answer("👋 С возвращением!",
+            reply_markup=kb.maind)
+        return
     await state.set_state(WelcomeQuiz.savings)
     await message.answer(
         "👋 Добро пожаловать!\n\n"
@@ -46,14 +56,16 @@ async def welcome_savings(message: Message, state: FSMContext):
     expected_loss = savings * 0.09
     await message.answer(
         f"📉 Если инвестировать случайно,\n"
-        "или оставлять сбережения без дела"
+        "или оставлять сбережения без дела\n"
         f"ошибки могут стоить около\n\n"
-        f"≈ ${expected_loss:,.0f} в год.\n\n"
+        f"≈ ₸{expected_loss:,.0f} в год.\n\n"
         "Хорошая новость —\n"
         "многие ошибки можно увидеть заранее.\n\n"
         "👇 Давайте проверим любую акцию или ETF.",
         reply_markup=kb.maind)
     await state.clear()
+    await update_user_profile(message.from_user.id,
+        welcome_completed = True)
 
 
 @router.callback_query(F.data == "main_menu")
