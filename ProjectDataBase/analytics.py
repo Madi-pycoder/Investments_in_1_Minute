@@ -1,12 +1,18 @@
 import asyncio
-from datetime import datetime, timezone, timedelta
 import time
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import select, func
-from ProjectDataBase.models import (
-    async_session,
+from aiogram import Router
+from aiogram.filters import Command
+from aiogram.types import Message
+from ProjectDataBase.models import (async_session,
     AnalyticsEvent, DailyAnalyticsSnapshot,
     Owner, Portfolio, Goal)
+from config import ADMIN_ID
 
+router = Router()
+def is_admin(user_id: int):
+    return user_id == ADMIN_ID
 
 class AnalyticsService:
     @staticmethod
@@ -236,13 +242,92 @@ class AnalyticsService:
             await session.commit()
 
 
-def build_portfolio_event_data(
-        portfolio_id: int | None, positions, goals,
-            metrics: dict | None = None,
-            risk_profile: str | None = None,
-            total_value: float = 0,
-            cached_metrics: bool = False, profile=None,
-            extra: dict | None = None,):
+    @staticmethod
+    async def get_dashboard():
+        async with async_session() as session:
+            users = await session.scalar(
+                select(func.count(Owner.id)))
+            portfolios = await session.scalar(
+                select(func.count(Portfolio.id)))
+            goals = await session.scalar(
+                select(func.count(Goal.id)))
+            events = await session.scalar(
+                select(func.count(AnalyticsEvent.id)))
+            dau = await session.scalar(
+                select(func.count(func.distinct(AnalyticsEvent.user_id)))
+                .where(func.date(AnalyticsEvent.created_at) == datetime.now(timezone.utc).date()))
+            activation = await AnalyticsService.calculate_activation_rate()
+            retention1 = await AnalyticsService.calculate_retention(1)
+            retention7 = await AnalyticsService.calculate_retention(7)
+            retention30 = await AnalyticsService.calculate_retention(30)
+            churn = await AnalyticsService.calculate_churn_risk()
+            avg_portfolio = await AnalyticsService.calculate_avg_portfolio_size()
+            avg_goals = await AnalyticsService.calculate_avg_goals_per_user()
+            return {
+                "users": users,
+                "portfolios": portfolios,
+                "goals": goals,
+                "events": events,
+                "dau": dau,
+                "activation": activation,
+                "retention1": retention1,
+                "retention7": retention7,
+                "retention30": retention30,
+                "churn": churn,
+                "avg_portfolio": avg_portfolio,
+                "avg_goals": avg_goals}
+
+
+    @staticmethod
+    async def latest_events(limit=20):
+        async with async_session() as session:
+            result = await session.execute(
+                select(AnalyticsEvent)
+                .order_by(AnalyticsEvent.created_at.desc()).limit(limit))
+            return result.scalars().all()
+
+    @staticmethod
+    async def failed_events(limit=20):
+        async with async_session() as session:
+            result = await session.execute(
+                select(AnalyticsEvent)
+                .where(AnalyticsEvent.success == False)
+                .order_by(AnalyticsEvent.created_at.desc())
+                .limit(limit))
+            return result.scalars().all()
+
+
+    @staticmethod
+    async def get_funnel():
+        async with async_session() as session:
+            total = await session.scalar(
+                select(func.count(Owner.id)))
+            onboarding = await session.scalar(
+                select(func.count(func.distinct(AnalyticsEvent.user_id)))
+                .where(AnalyticsEvent.event_name == "welcome.completed"))
+            portfolio = await session.scalar(
+                select(func.count(func.distinct(AnalyticsEvent.user_id)))
+                .where(AnalyticsEvent.event_name == "portfolio.created"))
+            analysis = await session.scalar(
+                select(func.count(func.distinct(AnalyticsEvent.user_id)))
+                .where(AnalyticsEvent.event_name == "analysis.completed"))
+            invest = await session.scalar(
+                select(func.count(func.distinct(
+                    AnalyticsEvent.user_id)))
+                .where(AnalyticsEvent.event_name == "auto_invest.enabled"))
+            return {
+                "total": total,
+                "welcome": onboarding,
+                "portfolio": portfolio,
+                "analysis": analysis,
+                "invest": invest}
+
+def build_portfolio_event_data(portfolio_id: int | None, positions, goals,
+    metrics: dict | None = None,
+    risk_profile: str | None = None,
+    total_value: float = 0,
+    cached_metrics: bool = False, profile=None,
+    extra: dict | None = None):
         positions = positions or []
         goals = goals or []
         metrics = metrics or {}
@@ -272,3 +357,110 @@ def build_portfolio_event_data(
         if extra:
             data.update(extra)
         return data
+
+
+
+@router.message(Command("analytics"))
+async def analytics_cmd(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    data = await AnalyticsService.get_dashboard()
+    text = f"""
+📊 Analytics
+
+👥 Users: {data["users"]}
+📁 Portfolios: {data["portfolios"]}
+🎯 Goals: {data["goals"]}
+
+📈 DAU: {data["dau"]}
+
+⚡ Activation:
+{data["activation"]:.1%}
+
+🔁 Retention D1:
+{data["retention1"]:.1%}
+
+🔁 Retention 1W:
+{data["retention7"]:.1%}
+
+🔁 Retention 1M:
+{data["retention30"]:.1%}
+
+📉 Churn:
+{data["churn"]:.1%}
+
+💰 Avg portfolio:
+${data["avg_portfolio"]}
+
+🎯 Avg goals:
+{data["avg_goals"]}
+
+📡 Events:
+{data["events"]}
+"""
+    await message.answer(text)
+
+
+
+@router.message(Command("events"))
+async def events_cmd(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    events = await AnalyticsService.latest_events()
+    text = "📡 Last events\n\n"
+    for e in events:
+        text += (
+            f"{e.created_at:%H:%M:%S} "
+            f"{e.user_id} "
+            f"{e.event_name} "
+            f"{'✅' if e.success else '❌'}\n")
+    await message.answer(text)
+
+
+
+@router.message(Command("funnel"))
+async def funnel_cmd(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    f = await AnalyticsService.get_funnel()
+    total = max(f["total"], 1)
+    text = f"""
+🚀 Funnel
+
+Users:
+
+{f["total"]}
+
+↓
+
+Welcome:
+
+{f["welcome"]}
+
+({f["welcome"]/total:.1%})
+
+↓
+
+Portfolio:
+
+{f["portfolio"]}
+
+({f["portfolio"]/total:.1%})
+
+↓
+
+Analysis:
+
+{f["analysis"]}
+
+({f["analysis"]/total:.1%})
+
+↓
+
+Auto Invest:
+
+{f["invest"]}
+
+({f["invest"]/total:.1%})
+"""
+    await message.answer(text)
