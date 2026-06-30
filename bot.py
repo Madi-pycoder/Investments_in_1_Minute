@@ -19,11 +19,12 @@ from Portfolio_Handlers.portfolio_rebalance_handler import (
 from Portfolio_Handlers.portfolio_brain_handler import (
     router as portfolio_brain_router)
 from VisualFeatures.projectinfo import router as project_info_router
-from MainEngines.scheduler import start_scheduler
+from MainEngines.scheduler import start_scheduler, set_bot
 
 
 async def main():
     bot = Bot(token=TOKEN)
+    set_bot(bot)
     redis = Redis.from_url(REDIS_URL)
     await async_main()
     storage = RedisStorage(redis)
