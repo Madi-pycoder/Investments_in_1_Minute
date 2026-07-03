@@ -2,16 +2,19 @@ import asyncio
 import random
 import time
 import traceback
+from pathlib import Path
+
 import pandas as pd
 from datetime import datetime
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from ProjectDataBase.analytics import AnalyticsService
 from MarketFeatures.market import get_etf_holdings, get_stock_info, get_etf_info
 from aiogram.fsm.state import State, StatesGroup
 from MainMetricsComputingFeatures.shariah import shariah_screen, shariah_screen_etf_full
 from MainMetricsComputingFeatures.riskmanagement import get_risk_metrics_cached, calculate_etf_risk
+from ReviewsAndReferrals.referral_service import ReferralService
 from VisualFeatures.renderer import format_shariah, format_money, format_percent, risk_bar
 from VisualFeatures.charts import generate_asset_growth_graph
 from VisualFeatures import keyboards as kb
@@ -314,6 +317,26 @@ async def analyze_ticker(message: Message, state: FSMContext):
                 "Следующий шаг занимает около минуты 👇",
                 reply_markup=kb.after_first_analysis)
             await update_user_profile(message.from_user.id, first_analysis_done=True)
+            profile = await get_user_profile(message.from_user.id)
+            if profile.pending_referral_code:
+                referral = await ReferralService.get_code(profile.pending_referral_code)
+                if referral:
+                    await ReferralService.increment_use(referral.owner_id)
+                    guide = FSInputFile(
+                        Path(__file__).parent.parent /
+                        "Guides" /
+                        "Гайд_за_приглашение_друга.md")
+                    await message.answer(
+                        "🎁 Поздравляем!\n\n"
+                        "Вы успешно завершили первый анализ.\n\n"
+                        "Как и обещали — вот бесплатный гайд.")
+                    await message.answer_document(guide, caption="📘 Бесплатный гайд")
+                    await message.bot.send_message(referral.owner_id,
+                        "🎉 Новый пользователь завершил первый анализ по вашей ссылке!")
+                    await ReferralService.mark_reward_given(message.from_user.id)
+                await update_user_profile(
+                    message.from_user.id,
+                    pending_referral_code=None)
         await state.update_data(
             last_ticker=data["ticker"],
             last_price=data["price"])
@@ -417,6 +440,25 @@ async def analyze_ticker(message: Message, state: FSMContext):
                 "Следующий шаг занимает около минуты 👇",
                 reply_markup=kb.after_first_analysis)
             await update_user_profile(message.from_user.id, first_analysis_done=True)
+            profile = await get_user_profile(message.from_user.id)
+            if profile.pending_referral_code:
+                referral = await ReferralService.get_code(profile.pending_referral_code)
+                if referral:
+                    await ReferralService.increment_use(referral.owner_id)
+                    guide = FSInputFile(
+                        Path(__file__).parent.parent /
+                        "Guides" /
+                        "Гайд_за_приглашение_друга.md")
+                    await message.answer(
+                        "🎁 Поздравляем!\n\n"
+                        "Вы успешно завершили первый анализ.\n\n"
+                        "Как и обещали — вот бесплатный гайд.")
+                    await message.answer_document(guide, caption="📘 Бесплатный гайд")
+                    await message.bot.send_message(referral.owner_id,
+                        "🎉 Новый пользователь завершил первый анализ по вашей ссылке!")
+                    await ReferralService.mark_reward_given(message.from_user.id)
+                await update_user_profile(message.from_user.id,
+                    pending_referral_code=None)
         await state.update_data(
             last_ticker=ticker,
             last_price=data["price"],

@@ -2,7 +2,6 @@ import asyncio
 from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis
 from aiogram import Bot, Dispatcher
-from ProjectDataBase.models import async_main
 from config import TOKEN, REDIS_URL
 from VisualFeatures.mainstart import router as main_router
 from VisualFeatures.markethandler import router as market_router
@@ -19,6 +18,7 @@ from Portfolio_Handlers.portfolio_rebalance_handler import (
 from Portfolio_Handlers.portfolio_brain_handler import (
     router as portfolio_brain_router)
 from VisualFeatures.projectinfo import router as project_info_router
+from ReviewsAndReferrals.referral import router as referral_router
 from MainEngines.scheduler import start_scheduler, set_bot
 
 
@@ -26,7 +26,6 @@ async def main():
     bot = Bot(token=TOKEN)
     set_bot(bot)
     redis = Redis.from_url(REDIS_URL)
-    await async_main()
     storage = RedisStorage(redis)
     dp = Dispatcher(storage=storage)
     start_scheduler()
@@ -40,6 +39,7 @@ async def main():
     dp.include_router(portfolio_reb_router)
     dp.include_router(portfolio_brain_router)
     dp.include_router(project_info_router)
+    dp.include_router(referral_router)
     print("🚀 Bot started")
     await dp.start_polling(bot)
 

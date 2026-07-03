@@ -1,12 +1,14 @@
 from aiogram import F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
-
 from ProfileData.user_profile import get_user_profile, create_user_profile, update_user_profile
+from ReviewsAndReferrals.referral_service import ReferralService
 from VisualFeatures import keyboards as kb
 from ProjectDataBase import backend as rq
+from pathlib import Path
+from aiogram.types import FSInputFile
 
 router = Router()
 
@@ -17,11 +19,28 @@ class WelcomeQuiz(StatesGroup):
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext):
+async def cmd_start(message: Message, command: CommandObject, state: FSMContext):
     await rq.set_user(message.from_user.id)
     profile = await get_user_profile(message.from_user.id)
     if profile is None:
         profile = await create_user_profile(message.from_user.id)
+    await ReferralService.get_or_create_code(message.from_user.id)
+    if command.args:
+        code = command.args.strip()
+        referral = await ReferralService.get_code(code)
+        if referral:
+            await ReferralService.increment_click(referral.owner_id)
+        ok, reason = await ReferralService.can_use_code(message.from_user.id, code)
+        if ok:
+            if ok:
+                await update_user_profile(message.from_user.id,
+                    pending_referral_code=code)
+        elif reason == "invalid_code":
+            await message.answer("❌ К сожалению, ссылка нерабочая")
+        elif reason == "self_referral":
+            await message.answer("❌ Нельзя использовать собственную ссылку.")
+        elif reason == "already_invited":
+            await message.answer("❌ Вы уже зарегистрированы по другой ссылке.")
     if profile.welcome_completed:
         await state.clear()
         await message.answer("👋 С возвращением!",
@@ -66,6 +85,18 @@ async def welcome_savings(message: Message, state: FSMContext):
     await state.clear()
     await update_user_profile(message.from_user.id,
         welcome_completed = True)
+    profile = await get_user_profile(message.from_user.id)
+    if profile.pending_referral_code:
+        referral = await ReferralService.get_code(profile.pending_referral_code)
+        if referral:
+            await ReferralService.register_referral(inviter_id=referral.owner_id,
+                invited_id=message.from_user.id)
+            await ReferralService.increment_use(referral.owner_id)
+            await message.bot.send_message(referral.owner_id,
+                "🎉 Новый пользователь полностью завершил регистрацию по вашей ссылке!")
+        await update_user_profile(
+            message.from_user.id,
+            pending_referral_code=None)
 
 
 @router.callback_query(F.data == "main_menu")

@@ -10,7 +10,10 @@ maind = InlineKeyboardMarkup(
             callback_data="etfs")],
         [InlineKeyboardButton(
             text="💼 Мой Портфель",
-            callback_data="portfolio_hub")],
+            callback_data="portfolio_hub"),
+        InlineKeyboardButton(
+            text="👥 Пригласить друзей",
+            callback_data="referral_menu")],
         [InlineKeyboardButton(
             text="❓ FAQ",
             callback_data="faq"),
@@ -54,7 +57,10 @@ portfolio_dashboard = InlineKeyboardMarkup(
             callback_data="auto_invest")],
         [InlineKeyboardButton(
             text="🎯 Цели",
-            callback_data="what_if")],
+            callback_data="what_if"),
+        InlineKeyboardButton(
+            text="👥 Пригласить друзей",
+            callback_data="referral_menu")],
         [InlineKeyboardButton(
             text="🔄 Мои Портфели",
             callback_data="portfolio_hub"),
@@ -320,7 +326,10 @@ after_show_portfolio = InlineKeyboardMarkup(
             callback_data="auto_invest")],
         [InlineKeyboardButton(
             text="🎯 Цели",
-            callback_data="what_if")],
+            callback_data="what_if"),
+        InlineKeyboardButton(
+            text="👥 Пригласить друзей",
+            callback_data="referral_menu")],
         [InlineKeyboardButton(
             text="🔄 Мои Портфели",
             callback_data="portfolio_hub"),
@@ -367,3 +376,13 @@ after_create_goal = InlineKeyboardMarkup(
         [InlineKeyboardButton(
             text="🏠 Пока вернуться в меню",
             callback_data="main_menu")]])
+
+
+referral_menu = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(
+            text="📊 Статистика",
+            callback_data="referral_stats")],
+        [InlineKeyboardButton(
+            text="♻️ Новый код",
+            callback_data="regenerate_referral")]])

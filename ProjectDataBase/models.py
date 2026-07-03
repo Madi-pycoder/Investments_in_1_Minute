@@ -230,6 +230,35 @@ class PortfolioSettings(Base):
 
 
 
+class UserReview(Base):
+    __tablename__ = "user_reviews"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("owners.tg_id"), index=True)
+    rating: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(String(2000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    admin_note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+
+class ReferralCode(Base):
+    __tablename__ = "referral_codes"
+    owner_id = mapped_column(BigInteger, ForeignKey("owners.tg_id"), primary_key=True)
+    clicks = mapped_column(Integer, default=0)
+    uses = mapped_column(Integer, default=0)
+    code = mapped_column(String(100), unique=True, index=True)
+    reward_given = mapped_column(Boolean, default=False)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Referral(Base):
+    __tablename__ = "referrals"
+    id = mapped_column(primary_key=True)
+    inviter_id = mapped_column(BigInteger, ForeignKey("owners.tg_id"), index=True)
+    invited_id = mapped_column(BigInteger, ForeignKey("owners.tg_id"), unique=True)
+    rewarded = mapped_column(Boolean, default=False)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 async def seed_categories():
     async with async_session() as session:
         stocks = await session.scalar(
