@@ -7,8 +7,6 @@ from ProfileData.user_profile import get_user_profile, create_user_profile, upda
 from ReviewsAndReferrals.referral_service import ReferralService
 from VisualFeatures import keyboards as kb
 from ProjectDataBase import backend as rq
-from pathlib import Path
-from aiogram.types import FSInputFile
 
 router = Router()
 
@@ -46,19 +44,24 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
         await message.answer("👋 С возвращением!",
             reply_markup=kb.maind)
         return
-    await state.set_state(WelcomeQuiz.savings)
-    await message.answer(
-        "👋 Добро пожаловать!\n\n"
-        "Большинство инвесторов теряют деньги\n"
-        "не потому что рынок плохой,\n"
-        "а потому что покупают активы вслепую.\n\n"
-        "Давайте быстро посчитаем,\n"
-        "сколько это может стоить именно вам.\n\n"
-        "💰 Сколько у вас сейчас накоплений?\n\n"
-        "Например:\n"
-        "100000 тенге\n"
-        "300000 тенге\n"
-        "1000000 тенге")
+    elif profile.welcome_seen:
+        await state.clear()
+        await message.answer("👋 С возвращением!", reply_markup=kb.maind)
+    else:
+        await update_user_profile(message.from_user.id, welcome_seen=False)
+        await state.set_state(WelcomeQuiz.savings)
+        await message.answer(
+            "👋 Добро пожаловать!\n\n"
+            "Большинство инвесторов теряют деньги\n"
+            "не потому что рынок плохой,\n"
+            "а потому что покупают активы вслепую.\n\n"
+            "Давайте быстро посчитаем,\n"
+            "сколько это может стоить именно вам.\n\n"
+            "💰 Сколько у вас сейчас накоплений?\n\n"
+            "Например:\n"
+            "100000 тенге\n"
+            "300000 тенге\n"
+            "1000000 тенге")
 
 
 @router.message(WelcomeQuiz.savings)

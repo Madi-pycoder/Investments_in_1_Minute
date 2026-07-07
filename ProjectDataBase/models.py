@@ -165,13 +165,13 @@ class UserProfileDB(Base):
     income: Mapped[float | None] = mapped_column(Float, nullable=True)
     investment_style: Mapped[str] = mapped_column(String(30), default="balanced")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
-    server_default=func.now())
+        server_default=func.now())
     first_goal_done: Mapped[bool] = mapped_column(Boolean, default=False)
     first_analysis_done: Mapped[bool] = mapped_column(Boolean, default=False)
     first_rebalance_done: Mapped[bool] = mapped_column(Boolean, default=False)
     first_auto_invest_done: Mapped[bool] = mapped_column(Boolean, default=False)
     welcome_completed: Mapped[bool] = mapped_column(Boolean, default=False)
-
+    welcome_seen: Mapped[bool] = mapped_column(Boolean, default=False)
 
 class AnalyticsEvent(Base):
     __tablename__ = "analytics_events"
@@ -253,7 +253,7 @@ class ReferralCode(Base):
 
 class Referral(Base):
     __tablename__ = "referrals"
-    id = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
     inviter_id = mapped_column(BigInteger, ForeignKey("owners.tg_id"), index=True)
     invited_id = mapped_column(BigInteger, ForeignKey("owners.tg_id"), unique=True)
     rewarded = mapped_column(Boolean, default=False)
