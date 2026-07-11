@@ -328,18 +328,18 @@ async def profile_budget(message: Message, state: FSMContext):
         portfolio_id, monthly_budget=budget)
     await state.set_state(ProfileSetup.risk)
     await message.answer(
-        "📊 Какой риск вам комфортен?\n\n"
-        "🟢 низкий\n"
-        "🟡 средний\n"
-        "🔴 высокий")
+        "📊 Какая стратегия вам комфортна?\n\n"
+        "🟢 Стабильность - низкий риск\n"
+        "🟡 Баланс - средний риск\n"
+        "🔴 Рост - высокий риск")
 
 
 
 @router.message(ProfileSetup.risk)
 async def profile_risk(message: Message, state: FSMContext):
     risk = message.text.lower().strip()
-    if risk not in ["низкий", "средний", "высокий"]:
-        await message.answer("❌ Выберите: низкий, средний или высокий риск")
+    if risk not in ["Стабильность", "Баланс", "Рост"]:
+        await message.answer("❌ Выберите: Стабильность, Баланс или Рост")
         return
     data = await state.get_data()
     portfolio_id = data.get("portfolio_id")
