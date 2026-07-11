@@ -5,7 +5,6 @@ from sqlalchemy import (BigInteger, DateTime, Date, String, Integer,
 from sqlalchemy.ext.asyncio import (create_async_engine, async_sessionmaker, AsyncAttrs,)
 from sqlalchemy.orm import (DeclarativeBase, mapped_column, Mapped,)
 from sqlalchemy.dialects.postgresql import JSONB
-print("DATABASE_URL =", DATABASE_URL)
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
@@ -243,12 +242,14 @@ class UserReview(Base):
 
 class ReferralCode(Base):
     __tablename__ = "referral_codes"
-    owner_id = mapped_column(BigInteger, ForeignKey("owners.tg_id"), primary_key=True)
-    clicks = mapped_column(Integer, default=0)
-    uses = mapped_column(Integer, default=0)
-    code = mapped_column(String(100), unique=True, index=True)
-    reward_given = mapped_column(Boolean, default=False)
-    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+    owner_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("owners.tg_id"),
+        primary_key=True)
+    clicks: Mapped[int] = mapped_column(Integer, default=0)
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    code: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    reward_given: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+        server_default=func.now())
 
 
 class Referral(Base):
