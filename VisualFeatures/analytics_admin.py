@@ -9,7 +9,10 @@ router = Router()
 
 @router.message(Command("analytics"))
 async def analytics_cmd(message: Message):
+    print("MY_ID = ", message.from_user.id)
+    print("ADMIN_ID = ", ADMIN_ID)
     if message.from_user.id != ADMIN_ID:
+        await message.answer("❌ You are not admin")
         return
     data = await AnalyticsService.get_dashboard()
     ref_stats = await ReferralService.statistics(message.from_user.id)

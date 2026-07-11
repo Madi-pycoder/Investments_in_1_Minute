@@ -371,8 +371,7 @@ after_create_goal = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton(
             text="⚡ Быстро исправить",
-            callback_data="goal_fix"
-        )],
+            callback_data="goal_fix")],
         [InlineKeyboardButton(
             text="🏠 Пока вернуться в меню",
             callback_data="main_menu")]])
@@ -385,4 +384,7 @@ referral_menu = InlineKeyboardMarkup(
             callback_data="referral_stats")],
         [InlineKeyboardButton(
             text="♻️ Новый код",
-            callback_data="regenerate_referral")]])
+            callback_data="regenerate_referral")],
+        [InlineKeyboardButton(
+            text="🏠 Главное меню",
+            callback_data="main_menu")]])
