@@ -3,7 +3,7 @@ from config import DATABASE_URL
 from sqlalchemy import (BigInteger, DateTime, Date, String, Integer,
     Float, Boolean, ForeignKey, UniqueConstraint, Index, func, select)
 from sqlalchemy.ext.asyncio import (create_async_engine, async_sessionmaker, AsyncAttrs,)
-from sqlalchemy.orm import (DeclarativeBase, mapped_column, Mapped,)
+from sqlalchemy.orm import (DeclarativeBase, mapped_column, Mapped)
 from sqlalchemy.dialects.postgresql import JSONB
 engine = create_async_engine(
     DATABASE_URL,
@@ -260,6 +260,20 @@ class Referral(Base):
     rewarded: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+
+class GrowthPromoState(Base):
+    __tablename__ = "growth_promo_states"
+    __table_args__ = (Index("ix_growth_promo_user_type", "user_id", "promo_type"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("owners.tg_id"), index=True)
+    promo_type: Mapped[str] = mapped_column(String(50), index=True)
+    last_shown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    show_count: Mapped[int] = mapped_column(Integer, default=0)
+    user_action: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    last_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cooldown_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    content_index: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 async def seed_categories():

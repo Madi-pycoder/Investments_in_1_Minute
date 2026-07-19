@@ -23,6 +23,7 @@ from Portfolio_Handlers.portfolio_brain_handler import (
 from VisualFeatures.projectinfo import router as project_info_router
 from VisualFeatures.analytics_admin import router as analytics_admin_router
 from ReviewsAndReferrals.referral import router as referral_router
+from GrowthSystem.router import router as growth_router
 from MainEngines.scheduler import start_scheduler, set_bot
 
 
@@ -46,6 +47,7 @@ async def main():
     dp.include_router(project_info_router)
     dp.include_router(analytics_admin_router)
     dp.include_router(referral_router)
+    dp.include_router(growth_router)
     print("🚀 Bot started")
     await dp.start_polling(bot)
 

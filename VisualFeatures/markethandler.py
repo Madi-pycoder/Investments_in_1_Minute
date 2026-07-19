@@ -3,7 +3,6 @@ import random
 import time
 import traceback
 from pathlib import Path
-
 import pandas as pd
 from datetime import datetime
 from aiogram import F, Router
@@ -19,6 +18,7 @@ from VisualFeatures.renderer import format_shariah, format_money, format_percent
 from VisualFeatures.charts import generate_asset_growth_graph
 from VisualFeatures import keyboards as kb
 from ProfileData.user_profile import get_user_profile, update_user_profile
+from GrowthSystem.triggers import GrowthTriggers
 
 class Mode(StatesGroup):
     waiting_for_ticker = State()
@@ -191,14 +191,10 @@ async def analyze_again_etfs(callback: CallbackQuery, state: FSMContext):
 
 
 async def analyze_ticker(message: Message, state: FSMContext):
-    print("STEP 1")
     try:
         mode = await state.get_data()
-        print("STEP 2")
         mode_type = mode.get("type")
-        print("STEP 3")
         ticker = message.text.strip().upper()
-        print("STEP 4")
     except Exception as e:
         print("EARLY CRASH:", repr(e))
         raise
@@ -224,12 +220,7 @@ async def analyze_ticker(message: Message, state: FSMContext):
             return
         risk_task = asyncio.create_task(get_risk_metrics_cached(ticker))
         screening_task = asyncio.create_task(shariah_screen(data))
-        t = time.perf_counter()
-        print("shariah_screen:", time.perf_counter() - t)
-        t = time.perf_counter()
         screening, risk = await asyncio.gather(screening_task, risk_task)
-        print("get_risk_metrics_cached:", time.perf_counter() - t)
-        print("RISK =", risk)
         risk_score = risk["risk_score"]
         risk_label = risk["risk_label"]
         pe = data["pe"]
@@ -350,8 +341,7 @@ async def analyze_ticker(message: Message, state: FSMContext):
                     "asset_type": "stock",
                     "risk_score": risk_score,
                     "shariah": screening["status"]}))
-        print("ПЕРЕД СОХРАНЕНИЕМ", type(data))
-        print("ПЕРЕД СОХРАНЕНИЕМ", type(screening))
+        asyncio.create_task(GrowthTriggers.trigger_after_first_analysis(message))
         def make_json_safe(obj):
             if isinstance(obj, dict):
                 return {k: make_json_safe(v) for k, v in obj.items()}
@@ -476,6 +466,7 @@ async def analyze_ticker(message: Message, state: FSMContext):
                 category="invest",
                 event_data={"ticker": ticker,
                     "asset_type": "etf"}))
+        asyncio.create_task(GrowthTriggers.trigger_after_first_analysis(message))
         return
 
 
