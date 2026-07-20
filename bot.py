@@ -48,7 +48,7 @@ async def main():
     dp.include_router(analytics_admin_router)
     dp.include_router(referral_router)
     dp.include_router(growth_router)
-    print("🚀 Bot started")
+    logging.info("🚀 Bot started")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

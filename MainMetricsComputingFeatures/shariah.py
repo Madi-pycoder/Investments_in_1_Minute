@@ -4,48 +4,11 @@ from ProjectDataBase.cache import ETF_CACHE, get_cached, set_cached, ETF_CACHE_T
 from MarketFeatures.market import get_stocks_batch
 import math
 import traceback
-FORBIDDEN_KEYWORDS = [
-    "bank",
-    "credit",
-    "insurance",
-    "casino",
-    "gambling",
-    "betting",
-    "alcohol",
-    "brewery",
-    "tobacco",
-    "porn",
-    "adult",
-    "weapons",
-    "defense",
-    "mortgage",
-    "reit",
-    "lending",
-    "consumer finance"]
-QUESTIONABLE_KEYWORDS = [
-    "financial services",
-    "capital markets",
-    "asset management"]
-FORCED_HARAM = {
-    "SPY",
-    "VOO",
-    "IVV",
-    "BRK-B",
-    "BRK.B"}
-STANDARD_CONFIG = {
-    "AAOIFI": {
-        "debt_limit": 0.30,
-        "cash_limit": 0.30,
-        "receivables_limit": 0.49,
-        "interest_limit": 0.05,
-        "denominator": "market_cap"},
-    "MSCI": {
-        "debt_limit": 0.33,
-        "cash_limit": 0.33,
-        "receivables_limit": 0.49,
-        "interest_limit": 0.05,
-        "denominator": "total_assets"}}
-BUFFER = 0.02
+from config import (
+    FORBIDDEN_KEYWORDS,
+    QUESTIONABLE_KEYWORDS,
+    FORCED_HARAM, SHARIAH_ETFS,
+    STANDARD_CONFIG, SHARIAH_BUFFER as BUFFER)
 WEIGHTS = {
     "market_cap": 2,
     "revenue": 2,
@@ -233,7 +196,7 @@ async def shariah_screen(stock, standard="AAOIFI"):
                 "missing_fields": []},
             "confidence": 100}
     interest_income = clean_number(stock.get("interest_income"))
-    if interest_income is None or math.isnan(interest_income):
+    if interest_income is None or (interest_income is not None and math.isnan(interest_income)):
         interest_check = {
             "name": "Доход от процентов",
             "status": "нейтральный",
@@ -363,7 +326,6 @@ def determine_status(results, score):
     return "НЕ СООТВЕТСТВУЕТ ❌"
 
 
-SHARIAH_ETFS = {"SPUS", "HLAL", "SPRE", "SPSK", "UMMA", "SPTE", "SPWO", "ISDE", "GLD"}
 def calculate_stock_trust(screening):
     audit = screening["audit"]
     freshness = audit["freshness"]["status"]
@@ -448,7 +410,7 @@ async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
         covered_weight += weight
         total_weight += weight
         halal_weight += effective_weight
-        if stock_status in ["СООТВЕТСТВУЕТ ШАРИАТУ ✅", "Скорее соответствует Шариату ⚠️"]:
+        if stock_status in ["СООТВЕТСТВУЕТ ШАРИАТУ ✅"]:
             halal_count += 1
         else:
             haram_count += 1

@@ -19,6 +19,9 @@ from VisualFeatures.charts import generate_asset_growth_graph
 from VisualFeatures import keyboards as kb
 from ProfileData.user_profile import get_user_profile, update_user_profile
 from GrowthSystem.triggers import GrowthTriggers
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Mode(StatesGroup):
     waiting_for_ticker = State()
@@ -26,8 +29,8 @@ router = Router()
 
 @router.callback_query(F.data == "stocks")
 async def cmd_stocks(callback: CallbackQuery, state: FSMContext):
-    print("MARKETHANDLER IMPORTED")
-    print("STOCKS START")
+    logger.debug("MARKETHANDLER IMPORTED")
+    logger.debug("STOCKS START")
     await state.set_state(Mode.waiting_for_ticker)
     await state.update_data(type="stocks")
     await callback.message.answer(
@@ -196,7 +199,7 @@ async def analyze_ticker(message: Message, state: FSMContext):
         mode_type = mode.get("type")
         ticker = message.text.strip().upper()
     except Exception as e:
-        print("EARLY CRASH:", repr(e))
+        logger.error("EARLY CRASH: %s", repr(e))
         raise
     asyncio.create_task(
         AnalyticsService.track_event(
@@ -214,7 +217,7 @@ async def analyze_ticker(message: Message, state: FSMContext):
             "Это займёт несколько секунд.\n")
         start = time.perf_counter()
         data = await get_stock_info(ticker)
-        print("get_stock_info:", time.perf_counter() - start)
+        logger.debug("get_stock_info: %s", time.perf_counter() - start)
         if "error" in data:
             await message.answer(data["error"])
             return

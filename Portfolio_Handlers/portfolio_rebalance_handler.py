@@ -18,6 +18,9 @@ from ProjectDataBase import backend as rq
 from VisualFeatures import keyboards as kb
 import asyncio
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ProfileSetup(StatesGroup):
     income = State()
@@ -30,7 +33,7 @@ async def preload_diagnosis(portfolio_id, data):
         metrics = await compute_portfolio_metrics(data)
         diagnosis_cache[portfolio_id] = {"data": metrics, "ts": time.time()}
     except Exception as e:
-        print("preload_diagnosis ERROR:", e)
+        logger.error("preload_diagnosis ERROR: %s", e)
 
 
 def get_diagnosis_cached(portfolio_id):
@@ -268,18 +271,15 @@ async def goal_fix(callback: CallbackQuery, state: FSMContext):
             "• недостаточно данных для анализа")
         return
     best = optimizations[0]
-    print("POSITIONS_DATA:")
-    print("REAL POSITIONS")
-    print([p["ticker"] for p in positions_data])
+    logger.debug("POSITIONS_DATA: %s", positions_data)
+    logger.debug("REAL POSITIONS: %s", [p["ticker"] for p in positions_data])
     for p in positions_data:
-        print(p["ticker"])
+        logger.debug("Position ticker: %s", p["ticker"])
     target_weights = build_goal_based_weights(
         positions_data,
         goals, best["risk"])
-    print("POSITIONS:")
-    print([p["ticker"] for p in positions_data])
-    print("TARGET:")
-    print(target_weights)
+    logger.debug("POSITIONS: %s", [p["ticker"] for p in positions_data])
+    logger.debug("TARGET: %s", target_weights)
     portfolio_volatility = (metrics.get("risk", {}).get("volatility", 15))/100
     goal_analysis = simulate_multiple_goals(positions_data, total_value, goals,
         portfolio_volatility, monthly_contribution=0)
@@ -289,7 +289,7 @@ async def goal_fix(callback: CallbackQuery, state: FSMContext):
         goals, portfolio_volatility, monthly_contribution=0)
     new_prob = new_goal_analysis[0]["simulation"]["probability"]
     new_risk = best["risk"] * 100
-    print(target_weights)
+    logger.debug("Target weights: %s", target_weights)
     rebalance_result = calculate_rebalance(positions_data, target_weights, total_value)
     trades = rebalance_result["trades"]
     best_prob = best.get("raw_probability", 0)
@@ -341,10 +341,8 @@ async def goal_fix(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(
                     text="✅ Применить план",
                     callback_data="confirm_goal_fix")]])
-    print("PORTFOLIO VIEW:")
-    print(metrics.get("goal_results"))
-    print("GOAL FIX:")
-    print(goal_analysis)
+    logger.debug("PORTFOLIO VIEW: %s", metrics.get("goal_results"))
+    logger.debug("GOAL FIX: %s", goal_analysis)
     await callback.message.answer(text, reply_markup=keyboard)
 
 

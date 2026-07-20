@@ -1,5 +1,6 @@
 import asyncio
 import time
+import logging
 import numpy as np
 import pandas as pd
 from ProjectDataBase.cache import (hist_cache, RETURNS_CACHE, get_cached, set_cached,
@@ -8,6 +9,8 @@ from ProjectDataBase.market_data_service import calculate_volatility_cached, cal
 from ProjectDataBase.models import async_session
 from scipy.optimize import minimize
 from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
 TURNOVER_PENALTY = 0.15
 MAX_WEIGHT = 0.40
 MIN_WEIGHT = 0.02
@@ -16,20 +19,20 @@ async def get_history_df(ticker: str, days: int = 365):
     ticker = ticker.upper()
     if ticker in HISTORY_INFLIGHT:
         return await HISTORY_INFLIGHT[ticker]
-    print(f"GET_HISTORY: {ticker}")
+    logger.debug(f"GET_HISTORY: {ticker}")
     cache_key = f"{ticker}_{days}"
     cached = hist_cache.get(cache_key)
     if cached:
-        print(f"CACHE HIT: {ticker}")
+        logger.debug(f"CACHE HIT: {ticker}")
         ts, value = cached
         if time.time() - ts < 600:
-            print(
+            logger.debug(
                 f"CACHE VALUE TYPE: {type(value)} "
                 f"EMPTY={getattr(value,'empty','NO_EMPTY_ATTR')}")
             return value
     async with async_session() as session:
         result = await session.execute(text("SELECT current_database()"))
-        print("DB =", result.scalar())
+        logger.debug("DB =", result.scalar())
         result = await session.execute(
             text("""
                 SELECT date, close
@@ -39,24 +42,24 @@ async def get_history_df(ticker: str, days: int = 365):
             """),
             {"ticker": ticker})
         rows = result.fetchall()
-        print(f"TICKER REQUESTED = [{ticker}]")
-        print(f"ROWS = {len(rows)}")
+        logger.debug(f"TICKER REQUESTED = [{ticker}]")
+        logger.debug(f"ROWS = {len(rows)}")
         if rows:
-            print("FIRST =", rows[0])
-            print("LAST =", rows[-1])
-        print("ROWS =", len(rows))
+            logger.debug("FIRST =", rows[0])
+            logger.debug("LAST =", rows[-1])
+        logger.debug("ROWS =", len(rows))
         if rows:
-            print("FIRST =", rows[0])
-            print("LAST =", rows[-1])
-    print(f"ROWS FOR {ticker}: {len(rows)}")
+            logger.debug("FIRST =", rows[0])
+            logger.debug("LAST =", rows[-1])
+    logger.debug(f"ROWS FOR {ticker}: {len(rows)}")
     if not rows:
-        print(f"NO ROWS FOR {ticker}")
+        logger.debug(f"NO ROWS FOR {ticker}")
         return None
     data = {
         "Close": [r.close for r in rows if r.close is not None]}
-    print(f"CLOSE COUNT FOR {ticker}: {len(data['Close'])}")
+    logger.debug(f"CLOSE COUNT FOR {ticker}: {len(data['Close'])}")
     if len(data["Close"]) < 2:
-        print(f"LESS THAN 2 CLOSES FOR {ticker}")
+        logger.debug(f"LESS THAN 2 CLOSES FOR {ticker}")
         return None
     df = pd.DataFrame(
         [{"Date": r.date,
@@ -64,7 +67,7 @@ async def get_history_df(ticker: str, days: int = 365):
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.set_index("Date")
     df = df.sort_index()
-    print(
+    logger.debug(
         f"DF CREATED FOR {ticker}: "
         f"shape={df.shape}, empty={df.empty}")
     hist_cache[cache_key] = (time.time(), df)
@@ -132,22 +135,22 @@ async def calculate_max_drawdown(ticker: str):
 async def calculate_beta(ticker: str):
     hist_stock = await get_history_df(ticker)
     hist_market = await get_history_df("VOO")
-    print("hist_stock =", type(hist_stock))
-    print("hist_market =", type(hist_market))
+    logger.debug("hist_stock =", type(hist_stock))
+    logger.debug("hist_market =", type(hist_market))
     if hist_stock is None or hist_market is None:
-        print(f"BETA FAILED {ticker}: no market history")
+        logger.debug(f"BETA FAILED {ticker}: no market history")
         return None
     returns_stock = hist_stock["Close"].pct_change().dropna()
     returns_market = hist_market["Close"].pct_change().dropna()
     df = pd.concat([returns_stock, returns_market], axis=1).dropna()
     if len(df) < 2:
-        print(f"BETA FAILED {ticker}: df len={len(df)}")
+        logger.debug(f"BETA FAILED {ticker}: df len={len(df)}")
         return None
     df.columns = ["stock", "market"]
     covariance = df.cov().iloc[0, 1]
     market_var = df["market"].var()
     if market_var == 0:
-        print(f"BETA FAILED {ticker}: market variance=0")
+        logger.debug(f"BETA FAILED {ticker}: market variance=0")
         return None
     beta = covariance / market_var
     return round(float(beta), 2)
@@ -195,11 +198,11 @@ async def calculate_etf_risk(ticker: str):
         calculate_sharpe_ratio(ticker))
     risk_score = calculate_risk_score(vol, dd, beta, sharpe)
     if risk_score is None:
-        print(
+        logger.debug(
             f"RISK SCORE NONE | "
             f"vol={vol}, dd={dd}, beta={beta}, sharpe={sharpe}")
     risk_label = get_risk_label(risk_score)
-    print("ETF INFO-Risk:", time.perf_counter() - start)
+    logger.debug("ETF INFO-Risk:", time.perf_counter() - start)
     return {
         "volatility": vol,
         "drawdown": dd,
@@ -496,7 +499,7 @@ async def get_risk_metrics_cached(ticker):
     sharpe = await calculate_sharpe_ratio(ticker)
     risk_score = calculate_risk_score(vol, dd, beta, sharpe)
     if risk_score is None:
-        print(
+        logger.debug(
             f"RISK SCORE NONE | "
             f"vol={vol}, dd={dd}, beta={beta}, sharpe={sharpe}")
     risk_label = get_risk_label(risk_score)
@@ -507,8 +510,8 @@ async def get_risk_metrics_cached(ticker):
         "sharpe": sharpe,
         "risk_score": risk_score,
         "risk_label": risk_label}
-    print(
-        f"RISK SCORE NONE | "
+    logger.debug(
+        f"RISK METRICS | "
         f"ticker={ticker} "
         f"vol={vol} "
         f"dd={dd} "

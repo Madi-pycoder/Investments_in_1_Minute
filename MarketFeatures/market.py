@@ -96,7 +96,7 @@ def get_price_fallback(ticker):
             return None
         return float(result[0]["meta"].get("regularMarketPrice"))
     except Exception as e:
-        print("ERROR:", e)
+        logger.error("Price fallback error: %s", e)
         return None
 
 
@@ -139,7 +139,7 @@ async def get_fx_rate(from_currency, to_currency="USD"):
         FX_CACHE[key] = rate
         return rate
     except Exception as e:
-        print("FX ERROR:", e)
+        logger.error("FX rate error: %s", e)
         return 1.0
 
 
@@ -151,11 +151,11 @@ async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
             .where(StockFundamentals.ticker == ticker))
         if row and not force_refresh:
             return row
-        print(f"[AUTO LOAD] {ticker}")
+        logger.info("[AUTO LOAD] %s", ticker)
         stock = yf.Ticker(ticker)
-        print("LOAD BS")
+        logger.info("Loading balance sheet for %s", ticker)
         bs = await asyncio.to_thread(lambda: stock.balance_sheet)
-        print("LOAD INCOME")
+        logger.info("Loading income statement for %s", ticker)
         income = await asyncio.to_thread(lambda: stock.income_stmt)
         total_debt = get_first_existing(bs, ["Total Debt", "Current Debt",
             "Long Term Debt"])
@@ -167,7 +167,7 @@ async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
         revenue = get_first_existing(income, ["Total Revenue",
             "Operating Revenue", "Revenue"])
         interest_income = find_interest_income(income)
-        print("LOAD MODULES")
+        logger.info("Loading modules for %s", ticker)
         modules = await asyncio.to_thread(
             lambda: Ticker(ticker).get_modules([
                 "assetProfile",
@@ -186,23 +186,21 @@ async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
                 or fast.get("currency"))
         financial_currency = KNOWN_FINANCIAL_CURRENCY.get(ticker,
             financial_currency)
-        print("\n===== FUNDAMENTALS RAW =====")
-        print("Ticker:", ticker)
-        print("financial_currency:", financial_currency)
-
-        print("marketCap:", financial.get("marketCap"))
-
-        print("balance_sheet index:")
-        print(bs.index.tolist())
-
-        print("income_stmt index:")
-        print(income.index.tolist())
-
-        print("Total Debt:", total_debt)
-        print("Cash:", total_cash)
-        print("Assets:", total_assets)
-        print("Revenue:", revenue)
-        print("============================\n")
+        logger.debug(
+            "===== FUNDAMENTALS RAW =====\n"
+            "Ticker: %s\n"
+            "financial_currency: %s\n"
+            "marketCap: %s\n"
+            "balance_sheet index: %s\n"
+            "income_stmt index: %s\n"
+            "Total Debt: %s\n"
+            "Cash: %s\n"
+            "Assets: %s\n"
+            "Revenue: %s\n"
+            "============================",
+            ticker, financial_currency, financial.get("marketCap"),
+            bs.index.tolist(), income.index.tolist(),
+            total_debt, total_cash, total_assets, revenue)
         quote = data.get("quoteType", {})
         values = {
             "ticker": ticker,
@@ -253,14 +251,14 @@ async def get_stock_info(ticker: str):
     if cached:
         return cached
     try:
-        print(f"FETCHING {ticker}")
+        logger.info("Fetching stock info for %s", ticker)
         stock = yf.Ticker(ticker)
-        print("STEP 1")
+        logger.debug("Step 1: Fetching history")
         hist = await asyncio.to_thread(stock.history, period="5y")
         if hist is None or hist.empty:
             return {"error": f"❌ Тикер {ticker} не найден"}
-        print(hist.tail())
-        print("EMPTY:", hist.empty)
+        logger.debug("History tail: %s", hist.tail())
+        logger.debug("History empty: %s", hist.empty)
         price = None
         if hist is not None and not hist.empty:
             price = last_valid_close(hist)
@@ -280,7 +278,7 @@ async def get_stock_info(ticker: str):
                 past = close_series.iloc[-(period+1)]
                 return round((current - past)/past * 100, 2)
             except Exception as e:
-                print("ERROR:", e)
+                logger.error("Percentage calculation error: %s", e)
                 return None
         growth = {
             "1D": pct(1),
@@ -289,7 +287,7 @@ async def get_stock_info(ticker: str):
             "6M": pct(126),
             "1Y": pct(252),
             "5Y": pct(len(hist)-1)}
-        print("STEP 2")
+        logger.debug("Step 2: Fetching modules")
         modules = await asyncio.to_thread(
             lambda: Ticker(ticker).get_modules([
                 "assetProfile",
@@ -298,7 +296,7 @@ async def get_stock_info(ticker: str):
                 "calendarEvents",
                 "price",
                 "summaryDetail"]))
-        print("STEP 3")
+        logger.debug("Step 3: Processing data")
         data = modules.get(ticker, {})
         profile = data.get("assetProfile", {})
         financial = data.get("financialData", {})
@@ -329,16 +327,18 @@ async def get_stock_info(ticker: str):
                     select(StockFundamentals).where(
                         StockFundamentals.ticker == ticker))
             currency = fundamentals.financial_currency
-            print("\n===== DB VALUES =====")
-            print("Ticker:", ticker)
-            print("DB currency:", fundamentals.financial_currency)
-
-            print("DB debt:", fundamentals.total_debt)
-            print("DB cash:", fundamentals.total_cash)
-            print("DB assets:", fundamentals.total_assets)
-            print("DB revenue:", fundamentals.revenue)
-
-            print("=====================\n")
+            logger.debug(
+                "===== DB VALUES =====\n"
+                "Ticker: %s\n"
+                "DB currency: %s\n"
+                "DB debt: %s\n"
+                "DB cash: %s\n"
+                "DB assets: %s\n"
+                "DB revenue: %s\n"
+                "=====================",
+                ticker, fundamentals.financial_currency,
+                fundamentals.total_debt, fundamentals.total_cash,
+                fundamentals.total_assets, fundamentals.revenue)
             fx = await get_fx_rate(currency, "USD")
             receivables = (
                 fundamentals.receivables
@@ -453,7 +453,7 @@ async def get_stock_info(ticker: str):
             currency)
         return result
     except Exception as e:
-        traceback.print_exc()
+        logger.error("get_stock_info error for %s: %s", ticker, e, exc_info=True)
         return {"error": str(e)}
 
 async def get_etf_info(ticker: str):
@@ -478,7 +478,7 @@ async def get_etf_info(ticker: str):
                     (price - hist["Close"].iloc[-period])
                     / hist["Close"].iloc[-period] * 100, 2)
             except Exception as e:
-                print("ERROR:", e)
+                logger.error("ETF percentage calculation error: %s", e)
                 return None
         growth = {
             "1D": pct(1),
@@ -509,7 +509,7 @@ async def get_etf_info(ticker: str):
             "price": float(price),
             "growth": growth}
     except Exception as e:
-        traceback.print_exc()
+        logger.error("get_etf_info error for %s: %s", ticker, e, exc_info=True)
         return {"error": str(e)}
 
 
@@ -549,7 +549,7 @@ async def fetch_chunk(chunk, retries=3):
             STOCKS_CACHE.update(result)
             return result
         except Exception as e:
-            print(f"Retry {attempt+1} for chunk failed:", e)
+            logger.warning("Retry %d for chunk failed: %s", attempt + 1, e)
             await asyncio.sleep(1.5 * (attempt + 1))
         for ticker in chunk:
             if ticker not in STOCKS_CACHE:
@@ -561,7 +561,7 @@ async def fetch_chunk(chunk, retries=3):
                     "total_debt": None,
                     "total_cash": None,
                     "receivables": None,}
-    print("Chunk полностью упал:", chunk)
+    logger.error("Chunk completely failed: %s", chunk)
     return {}
 
 semaphore = asyncio.Semaphore(2)
@@ -581,11 +581,11 @@ async def get_stocks_batch(tickers):
     result = {}
     for r in all_results:
         if isinstance(r, Exception):
-            print("Chunk error:", r)
+            logger.error("Chunk error: %s", r)
             continue
         result.update(r)
     if len(result) == 0:
-        print("⚠️ Yahoo полностью упал → fallback")
+        logger.warning("Yahoo completely down, using fallback")
         return {
             t: {
                 "industry": None,
@@ -637,7 +637,7 @@ async def detect_etf_type(ticker):
             return "shariah"
         return "generic"
     except Exception as e:
-        print("detect_etf_type error:", e)
+        logger.error("detect_etf_type error for %s: %s", ticker, e)
         return None
 
 def validate_and_normalize(holdings):
@@ -668,10 +668,10 @@ async def load_yahoo_full_holdings(ticker):
                 result.append({
                     "ticker": symbol.upper(),
                     "weight": float(weight)})
-        print("Yahoo FULL loaded:", len(result))
+        logger.info("Yahoo FULL loaded: %d holdings", len(result))
         return result if len(result) > 0 else None
     except Exception as e:
-        print("Yahoo FULL error:", e)
+        logger.error("Yahoo FULL error for %s: %s", ticker, e)
         return None
 
 async def load_shariah_holdings(ticker):
@@ -695,10 +695,10 @@ async def load_shariah_holdings(ticker):
                 for _, row in df.iterrows()
                 if row[ticker_col] and row[weight_col]]
             if result:
-                print("Shariah loaded:", len(result))
+                logger.info("Shariah loaded: %d holdings", len(result))
                 return result
         except Exception as e:
-            print(f"Shariah loader error ({url}):", e)
+            logger.error("Shariah loader error (%s): %s", url, e)
             continue
     return None
 
@@ -719,10 +719,10 @@ async def load_universal_fallback(ticker):
                 result.append({
                     "ticker": symbol.upper(),
                     "weight": 1 / n})
-        print("Universal fallback loaded:", len(result))
+        logger.info("Universal fallback loaded: %d holdings", len(result))
         return result if len(result) > 0 else None
     except Exception as e:
-        print("Universal fallback error:", e)
+        logger.error("Universal fallback error for %s: %s", ticker, e)
         return None
 
 
@@ -744,18 +744,18 @@ async def get_etf_holdings(etf_ticker):
             holdings = None
         else:
             coverage = sum(h["weight"] for h in base)
-            print(f"Yahoo holdings coverage: {coverage:.2%}")
+            logger.info("Yahoo holdings coverage: %.2%%", coverage * 100)
             if coverage >= 0.80:
-                print("Using pure Yahoo holdings")
+                logger.info("Using pure Yahoo holdings")
                 return base
             if coverage < 0.40:
-                print("Coverage too low → proxy fallback")
+                logger.info("Coverage too low, using proxy fallback")
                 proxy = await get_index_proxy(ticker)
                 return [
                     {"ticker": t,
                     "weight": 1 / len(proxy)}
                     for t in proxy]
-            print("Using Yahoo + proxy hybrid")
+            logger.info("Using Yahoo + proxy hybrid")
             proxy = await get_index_proxy(ticker)
             existing = {h["ticker"] for h in base}
             extra = [
@@ -771,7 +771,7 @@ async def get_etf_holdings(etf_ticker):
                 {"ticker": t,
                 "weight": weight_extra / len(extra)}for t in extra]
             return normalize_holdings(base_part + extra_part)
-    print("⚠️ Yahoo holdings fail → proxy fallback")
+    logger.warning("Yahoo holdings failed, using proxy fallback")
     proxy = await get_index_proxy(ticker)
     return [
         {"ticker": t, "weight": 1 / len(proxy)} for t in proxy]
