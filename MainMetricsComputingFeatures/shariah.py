@@ -453,7 +453,6 @@ async def shariah_screen_etf_full(etf_ticker, get_etf_holdings):
         "total_analyzed": len(trust_breakdown),
         "covered_percent": round(covered_weight * 100, 2),}
     set_cached(ETF_CACHE, key, result)
-    print("ETF INFO-Shariah:", time.perf_counter() - start)
     return result
 
 

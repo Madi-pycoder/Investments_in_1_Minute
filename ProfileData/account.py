@@ -95,8 +95,6 @@ async def select_portfolio(callback: CallbackQuery, state: FSMContext):
     await state.set_data({"portfolio_id": portfolio_id})
     positions = await rq.get_positions(portfolio_id)
     goals = await rq.get_goals(portfolio_id)
-    print("PORTFOLIO ID:", portfolio_id)
-    print("GOALS COUNT:", len(goals))
     total_positions = len(positions)
     text = (
         f"💼 Портфель открыт\n\n"

@@ -2,7 +2,9 @@ import uuid
 from Explanation.financial_models import InsightCard
 from MainEngines.goal_engine import optimize_portfolio_for_goals
 from VisualFeatures.renderer import classify_goal_gap
+import logging
 
+logger = logging.getLogger(__name__)
 
 class FinancialBrain:
     MAX_INSIGHTS = 3
@@ -24,7 +26,6 @@ class FinancialBrain:
         insights.extend(self.market_insights())
         insights.extend(self.behavior_insights())
         insights.sort(key=lambda x: x.priority, reverse=True)
-        print("GOALS:", self.goals)
         return insights[:self.MAX_INSIGHTS]
 
 

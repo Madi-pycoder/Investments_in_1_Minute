@@ -1,5 +1,5 @@
-import asyncio
 import logging_config
+import asyncio
 import logging
 from aiogram.fsm.storage.redis import RedisStorage
 from redis.asyncio import Redis

@@ -4,13 +4,16 @@ from ProjectDataBase.analytics import AnalyticsService
 from ProjectDataBase.cache import portfolio_data_cache
 from ProjectDataBase.data_provider import DataProvider
 from ProjectDataBase import backend as rq
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def with_timeout(coro, timeout=5, default=None):
     try:
         return await asyncio.wait_for(coro, timeout=timeout)
     except Exception as e:
-        print("ERROR:", e)
+        logger.info("ERROR:", e)
         return default
 
 def get_portfolio_data_cached(portfolio_id):

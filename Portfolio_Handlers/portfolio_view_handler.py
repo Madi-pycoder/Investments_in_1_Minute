@@ -11,7 +11,11 @@ from ProjectDataBase.cache import (portfolio_cache, portfolio_data_cache, diagno
 from VisualFeatures import keyboards as kb
 import asyncio
 import time
+import logging
+
 router = Router()
+logger = logging.getLogger(__name__)
+
 class Mode(StatesGroup):
     waiting_for_ticker = State()
 class ProfileSetup(StatesGroup):
@@ -40,7 +44,7 @@ async def preload_diagnosis(portfolio_id,data):
             "data": metrics,
             "ts": time.time()}
     except Exception as e:
-        print("preload_diagnosis ERROR:", e)
+        logger.info("preload_diagnosis ERROR:", e)
     finally:
         DIAGNOSIS_IN_PROGRESS.discard(portfolio_id)
 

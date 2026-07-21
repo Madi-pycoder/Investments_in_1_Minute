@@ -6,10 +6,6 @@ def calculate_rebalance(
     positions_data, target_weights, total_value,
     min_weight_drift=MIN_WEIGHT_DRIFT,
     min_trade_value=MIN_TRADE_DOLLARS):
-    print(target_weights)
-    print([
-        (p["ticker"], p["weight"])
-        for p in positions_data])
     trades = []
     skipped_small = 0
     low_diversification = len(positions_data) <= 3

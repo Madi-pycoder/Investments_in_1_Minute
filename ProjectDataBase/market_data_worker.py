@@ -3,24 +3,15 @@ from datetime import datetime, timezone
 import random
 import yfinance as yf
 import pandas as pd
+import logging
 from sqlalchemy import select
 from ProjectDataBase.models import (async_session, Position, MarketPrice,
     HistoricalPrice, StockFundamentals)
 from yahooquery import Ticker
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy import func, text
-import logging
+from sqlalchemy import func
 
-logger = logging.getLogger("halal")
-logger.setLevel(logging.INFO)
-
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "[%(levelname)s] %(asctime)s %(message)s"
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+logger = logging.getLogger(__name__)
 
 UPDATE_INTERVAL = 900
 CORE_TICKERS = {
@@ -43,7 +34,6 @@ async def get_all_tickers():
             select(Position.ticker).distinct())
         tickers = set(result.all())
         tickers.update({"SPY", "VOO", "QQQ", "VTI"})
-        logger.info("ALL TICKERS: %s", sorted(tickers))
         return list(tickers)
 
 def find_interest_income(income):
@@ -81,7 +71,6 @@ async def update_market_price(ticker, session):
             if hist is not None and not hist.empty:
                 price = float(hist["Close"].iloc[-1])
         if price is None:
-            print(f"SKIP {ticker}: no price data")
             return
         existing = await session.scalar(
         select(MarketPrice).where(MarketPrice.ticker == ticker))
@@ -102,7 +91,7 @@ async def update_market_price(ticker, session):
             session.add(MarketPrice(ticker=ticker, **payload))
     except Exception as e:
         await session.rollback()
-        print(f"PRICE ERROR {ticker}: {e}")
+        logger.info(f"PRICE ERROR {ticker}: {e}")
 
 
 async def update_history(ticker):
@@ -119,7 +108,6 @@ async def update_history(ticker):
                 hist = await asyncio.to_thread(
                     lambda: stock.history(period="2y"))
             if hist is None or hist.empty:
-                print(f"HISTORY EMPTY: {ticker}")
                 return
             rows = []
             for idx, row in hist.iterrows():
@@ -136,10 +124,8 @@ async def update_history(ticker):
                 index_elements=["ticker", "date"])
             await session.execute(stmt)
             await session.commit()
-            result = await session.execute(text("SELECT current_database()"))
-            print("UPDATE_HISTORY DB =", result.scalar())
     except Exception as e:
-        print(f"HISTORY ERROR {ticker}: {e}")
+        logger.info(f"HISTORY ERROR {ticker}: {e}")
 
 
 
@@ -157,12 +143,9 @@ def get_first_existing(df, keys):
 
 async def update_fundamentals(ticker, session):
     try:
-        logger.info("FUND 1 %s", ticker)
         stock = yf.Ticker(ticker)
         bs = await asyncio.to_thread(lambda: stock.balance_sheet)
-        logger.info("FUND 2 %s", ticker)
         income = await asyncio.to_thread(lambda: stock.income_stmt)
-        logger.info("FUND 3 %s", ticker)
         total_debt = get_first_existing(bs, ["Total Debt",
             "Current Debt", "Long Term Debt"])
         total_cash = get_first_existing(bs, [
@@ -176,37 +159,23 @@ async def update_fundamentals(ticker, session):
             "Total Revenue", "Operating Revenue",
             "Revenue"])
         interest_income = find_interest_income(income)
-        if ticker == "AAPL":
-            print("INTEREST RESULT:", interest_income)
         modules = await asyncio.to_thread(
             lambda: Ticker(ticker).get_modules([
             "assetProfile",
             "financialData",
             "quoteType"])) or {}
-        logger.info("FUND 4 %s", ticker)
         data = modules.get(ticker, {})
         profile = data.get("assetProfile", {})
         financial = data.get("financialData", {})
         quote = data.get("quoteType", {})
         fast = await asyncio.to_thread(lambda: stock.fast_info)
-        logger.info("FUND 5 %s", ticker)
         info = await asyncio.to_thread(lambda: stock.info)
-        logger.info("FUND 6 %s", ticker)
         financial_currency = (
                 financial.get("financialCurrency")
                 or info.get("financialCurrency")
                 or info.get("currency")
                 or fast.get("currency"))
-        financial_currency = KNOWN_FINANCIAL_CURRENCY.get(ticker,
-            financial_currency)
-        logger.info(
-            "DB UPDATE %s currency=%s debt=%s cash=%s revenue=%s assets=%s",
-            ticker,
-            financial_currency,
-            total_debt,
-            total_cash,
-            revenue,
-            total_assets)
+        financial_currency = KNOWN_FINANCIAL_CURRENCY.get(ticker, financial_currency)
         existing = await session.scalar(
             select(StockFundamentals).where(StockFundamentals.ticker == ticker))
         payload = {
@@ -238,27 +207,23 @@ async def update_fundamentals(ticker, session):
             session.add(StockFundamentals(ticker=ticker, **payload))
     except Exception as e:
         await session.rollback()
-        print(f"FUNDAMENTALS ERROR {ticker}: {e}")
+        logger.info(f"FUNDAMENTALS ERROR {ticker}: {e}")
 
 
 semaphore = asyncio.Semaphore(5)
 async def process_ticker(ticker):
-    logger.info("START %s", ticker)
     async with semaphore:
         async with async_session() as session:
             try:
                 await update_market_price(ticker, session)
-                logger.info("PRICE DONE %s", ticker)
                 await update_fundamentals(ticker, session)
-                logger.info("FUND DONE %s", ticker)
                 if ticker in CORE_TICKERS:
                     await update_history(ticker)
                 elif random.random() < 0.1:
                     await update_history(ticker)
                 await session.commit()
-                logger.info("COMMIT DONE %s", ticker)
             except Exception as e:
-                print(f"ERROR {ticker}: {e}")
+                logger.info(f"ERROR {ticker}: {e}")
 
 
 async def market_worker():
@@ -270,7 +235,7 @@ async def market_worker():
                 for t in tickers]
             await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as e:
-            print("WORKER ERROR:", e)
+            logger.info("WORKER ERROR:", e)
         await asyncio.sleep(UPDATE_INTERVAL)
 
 if __name__ == "__main__":

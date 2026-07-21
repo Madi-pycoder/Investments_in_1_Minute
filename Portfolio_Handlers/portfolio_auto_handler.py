@@ -14,7 +14,9 @@ from MainEngines.auto_invest_engine import run_auto_invest_for_user, get_cached_
 import time
 import ProjectDataBase.backend as rq
 import VisualFeatures.keyboards as kb
+import logging
 
+logger = logging.getLogger(__name__)
 router = Router()
 AUTO_INVEST_MESSAGES = {
     "disabled":
@@ -43,7 +45,7 @@ async def preload_diagnosis(portfolio_id, data):
             "data": metrics,
             "ts": time.time()}
     except Exception as e:
-        print("preload_diagnosis ERROR:", e)
+        logger.info("preload_diagnosis ERROR:", e)
 
 def get_diagnosis_cached(portfolio_id):
     item = diagnosis_cache.get(portfolio_id)

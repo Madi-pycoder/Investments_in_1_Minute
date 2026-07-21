@@ -1,3 +1,4 @@
+import logging
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -5,12 +6,14 @@ from ProjectDataBase.market_data_service import get_price_history
 from io import BytesIO
 import os
 
+logger = logging.getLogger(__name__)
+
 def cleanup_file(path):
     try:
         if path and os.path.exists(path):
             os.remove(path)
     except Exception as e:
-        print("PNG cleanup error:", e)
+        logger.info("PNG cleanup error:", e)
 
 
 async def generate_asset_growth_graph(ticker):

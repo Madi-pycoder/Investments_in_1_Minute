@@ -71,8 +71,6 @@ def build_positions_data(positions, prices, data):
             pnl_abs = 0
         p["pnl_pct"] = pnl_pct
         p["pnl_abs"] = pnl_abs
-    print("BUILD POSITIONS")
-    print([p.ticker for p in positions])
     return positions_data, total_value
 
 

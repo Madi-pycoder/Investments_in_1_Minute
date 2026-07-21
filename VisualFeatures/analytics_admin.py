@@ -4,38 +4,52 @@ from aiogram.filters import Command
 from ProjectDataBase.analytics import AnalyticsService
 from ReviewsAndReferrals.referral_service import ReferralService
 from config import ADMIN_ID
+import logging
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 @router.message(Command("analytics"))
 async def analytics_cmd(message: Message):
-    print("MY_ID = ", message.from_user.id)
-    print("ADMIN_ID = ", ADMIN_ID)
+    logger.info("MY_ID = ", message.from_user.id)
+    logger.info("ADMIN_ID = ", ADMIN_ID)
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ You are not admin")
         return
+    await message.answer("START")
     data = await AnalyticsService.get_dashboard()
-    ref_stats = await ReferralService.statistics(message.from_user.id)
+    ref_stats = await ReferralService.admin_statistics()
     text = f"""
 📊 Analytics
 
 👥 Users: {data["users"]}
 📁 Portfolios: {data["portfolios"]}
+🧮 Rebalances: {data["quantity"]}
 🎯 Goals: {data["goals"]}
 
+🆕 New today: {data["new_1d"]}
+🆕 New 7d: {data["new_7d"]}
+🆕 New 30d: {data["new_30d"]}
+🆕 New 90d: {data["new_90d"]}
+
 📈 DAU: {data["dau"]}
+📈 WAU: {data["wau"]}
+📈 MAU: {data["mau"]}
+
+📈 WoW: {data["wow"]}
+📈 MoM: {data["mom"]}
 
 ⚡ Activation:
 {data["activation"]:.1%}
 
 🔁 Retention D1:
 {data["retention1"]:.1%}
-
 🔁 Retention 1W:
 {data["retention7"]:.1%}
-
 🔁 Retention 1M:
 {data["retention30"]:.1%}
+🔁 Retention 3M:
+{data["retention90"]:.1%}
 
 📉 Churn:
 {data["churn"]:.1%}
@@ -45,6 +59,9 @@ ${data["avg_portfolio"]}
 
 🎯 Avg goals:
 {data["avg_goals"]}
+
+💳 Avg deals:
+{data["avg_deals"]}
 
 📡 Events:
 {data["events"]}

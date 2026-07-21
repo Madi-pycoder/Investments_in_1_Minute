@@ -12,7 +12,6 @@ import requests
 import pandas as pd
 import asyncio
 import math
-import traceback
 import logging
 
 logger = logging.getLogger("halal")
@@ -131,11 +130,6 @@ async def get_fx_rate(from_currency, to_currency="USD"):
         if hist is None or hist.empty:
             return 1.0
         rate = float(hist["Close"].iloc[-1])
-        logger.info(
-            "FX %s -> %s = %s",
-            from_currency,
-            to_currency,
-            rate)
         FX_CACHE[key] = rate
         return rate
     except Exception as e:
@@ -151,7 +145,6 @@ async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
             .where(StockFundamentals.ticker == ticker))
         if row and not force_refresh:
             return row
-        logger.info("[AUTO LOAD] %s", ticker)
         stock = yf.Ticker(ticker)
         logger.info("Loading balance sheet for %s", ticker)
         bs = await asyncio.to_thread(lambda: stock.balance_sheet)
@@ -186,21 +179,6 @@ async def ensure_fundamentals_exist(ticker: str, force_refresh: bool=False):
                 or fast.get("currency"))
         financial_currency = KNOWN_FINANCIAL_CURRENCY.get(ticker,
             financial_currency)
-        logger.debug(
-            "===== FUNDAMENTALS RAW =====\n"
-            "Ticker: %s\n"
-            "financial_currency: %s\n"
-            "marketCap: %s\n"
-            "balance_sheet index: %s\n"
-            "income_stmt index: %s\n"
-            "Total Debt: %s\n"
-            "Cash: %s\n"
-            "Assets: %s\n"
-            "Revenue: %s\n"
-            "============================",
-            ticker, financial_currency, financial.get("marketCap"),
-            bs.index.tolist(), income.index.tolist(),
-            total_debt, total_cash, total_assets, revenue)
         quote = data.get("quoteType", {})
         values = {
             "ticker": ticker,
@@ -309,11 +287,6 @@ async def get_stock_info(ticker: str):
             fundamentals = await session.scalar(
                 select(StockFundamentals)
                 .where(StockFundamentals.ticker == ticker))
-            logger.info(
-                "READ DB %s currency=%s updated_at=%s",
-                ticker,
-                fundamentals.financial_currency if fundamentals else None,
-                fundamentals.updated_at if fundamentals else None,)
             if fundamentals is None:
                 fundamentals = await ensure_fundamentals_exist(ticker, force_refresh=True)
             need_refresh = (
@@ -381,53 +354,13 @@ async def get_stock_info(ticker: str):
                 or price_data.get("marketCap")
                 or stats.get("marketCap")
                 or stock.fast_info.get("market_cap"))
-        if market_cap is None:
-            market_cap = fundamentals.market_cap
-        logger.info(
-            """
-        ================ FX DEBUG ================
-        Ticker               : %s
-        Financial currency   : %s
-        FX rate              : %s
-
-        RAW market cap       : %s
-        RAW debt             : %s
-        RAW cash             : %s
-        RAW revenue          : %s
-        RAW receivables      : %s
-
-        Converted debt       : %s
-        Converted cash       : %s
-        Converted revenue    : %s
-        Converted receivable : %s
-
-        Debt/Cap             : %s
-        Cash/Cap             : %s
-        ==========================================
-        """,
-            ticker,
-            currency,
-            fx,
-            market_cap,
-            fundamentals.total_debt if fundamentals else None,
-            fundamentals.total_cash if fundamentals else None,
-            fundamentals.revenue if fundamentals else None,
-            fundamentals.receivables if fundamentals else None,
-            total_debt,
-            total_cash,
-            revenue,
-            receivables,
-            total_debt / market_cap if total_debt and market_cap else None,
-            total_cash / market_cap if total_cash and market_cap else None,)
         result = {
             "name": price_data.get("shortName"),
             "ticker": ticker.upper(),
             "debt_to_equity": dte / 100 if dte else None,
             "pe": summary.get("trailingPE"),
             "eps": summary.get("trailingEps"),
-            "market_cap": clean_number(financial.get("marketCap")
-                or price_data.get("marketCap")
-                or stats.get("marketCap")),
+            "market_cap": market_cap,
             "industry": profile.get("industry"),
             "sector": profile.get("sector"),
             "dividends": stats.get("dividendRate"),
@@ -443,14 +376,6 @@ async def get_stock_info(ticker: str):
             "financials_updated_at": financials_updated_at,
             "ebitda": clean_number(financial.get("ebitda"))}
         set_cached(STOCK_INFO_CACHE, ticker, result)
-        logger.info(
-            "%s FINAL: market_cap=%s debt=%s cash=%s revenue=%s currency=%s",
-            ticker,
-            result["market_cap"],
-            result["total_debt"],
-            result["total_cash"],
-            result["revenue"],
-            currency)
         return result
     except Exception as e:
         logger.error("get_stock_info error for %s: %s", ticker, e, exc_info=True)
@@ -668,7 +593,6 @@ async def load_yahoo_full_holdings(ticker):
                 result.append({
                     "ticker": symbol.upper(),
                     "weight": float(weight)})
-        logger.info("Yahoo FULL loaded: %d holdings", len(result))
         return result if len(result) > 0 else None
     except Exception as e:
         logger.error("Yahoo FULL error for %s: %s", ticker, e)

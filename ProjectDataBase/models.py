@@ -283,4 +283,3 @@ async def seed_categories():
         if not stocks:
             session.add(Category(name="Stocks"))
             await session.commit()
-            print("CREATED CATEGORY STOCKS")

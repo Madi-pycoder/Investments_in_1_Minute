@@ -4,8 +4,8 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import select, func
 from aiogram import Router
 from ProjectDataBase.models import (async_session,
-    AnalyticsEvent, DailyAnalyticsSnapshot,
-    Owner, Portfolio, Goal)
+                                    AnalyticsEvent, DailyAnalyticsSnapshot,
+                                    Owner, Portfolio, Goal, Transaction)
 
 router = Router()
 
@@ -71,6 +71,68 @@ class AnalyticsService:
             category=category,
             event_data=event_data,
             source_attribution=source_attribution)
+
+    @staticmethod
+    async def new_users(days: int) -> int:
+        start = datetime.now(timezone.utc) - timedelta(days)
+        async with async_session as session:
+            return await session.scalar(
+                select(func.count(Owner.id))
+                .where(Owner.created_at >= start)) or 0
+
+    @staticmethod
+    async def active_users(days: int) -> int:
+        start = datetime.now(timezone.utc) - timedelta(days)
+        async with async_session as session:
+            return await session.scalar(
+                select(func.count(func.distinct(AnalyticsEvent.user_id)))
+                .where(AnalyticsEvent.created_at >= start)) or 0
+
+    @staticmethod
+    async def wow_growth():
+        now = datetime.now(timezone.utc)
+        current = now - timedelta(days=7)
+        previous = now - timedelta(days=14)
+        async with async_session() as session:
+            cur = await session.scalar(
+                select(func.count(Owner.id))
+                .where(Owner.created_at >= current)) or 0
+            prev = await session.scalar(
+                select(func.count(Owner.id))
+                .where(Owner.created_at >= previous,
+                       Owner.created_at < current)) or 0
+        if prev == 0:
+            return 0
+        return round((cur-prev)/prev*100, 2)
+
+    @staticmethod
+    async def mom_growth():
+        now = datetime.now(timezone.utc)
+        current = now - timedelta(days=30)
+        previous = now - timedelta(days=60)
+        async with async_session() as session:
+            cur = await session.scalar(
+                select(func.count(Owner.id))
+                .where(Owner.created_at >= current)) or 0
+            prev = await session.scalar(
+                select(func.count(Owner.id))
+                .where(Owner.created_at >= previous,
+                       Owner.created_at < current)) or 0
+        if prev == 0:
+            return 0
+        return round((cur - prev) / prev * 100, 2)
+
+    @staticmethod
+    async def total_aum():
+        async with async_session as session:
+            return await session.scalar(
+                select(func.coalesce(func.sum(Portfolio.total_value), 0))) or 0
+
+    @staticmethod
+    async def avg_deals():
+        async with async_session() as session:
+            return await session.scalar(
+                select(func.avg(func.count(Transaction.id))))
 
 
     @staticmethod
@@ -242,35 +304,59 @@ class AnalyticsService:
         async with async_session() as session:
             users = await session.scalar(
                 select(func.count(Owner.id)))
+            new_1d = await AnalyticsService.new_users(1)
+            new_7d = await AnalyticsService.new_users(7)
+            new_30d = await AnalyticsService.new_users(30)
+            new_90d = await AnalyticsService.new_users(90)
             portfolios = await session.scalar(
                 select(func.count(Portfolio.id)))
             goals = await session.scalar(
                 select(func.count(Goal.id)))
             events = await session.scalar(
                 select(func.count(AnalyticsEvent.id)))
-            dau = await session.scalar(
-                select(func.count(func.distinct(AnalyticsEvent.user_id)))
-                .where(func.date(AnalyticsEvent.created_at) == datetime.now(timezone.utc).date()))
+            dau = await AnalyticsService.active_users(1)
+            wau = await AnalyticsService.active_users(7)
+            mau = await AnalyticsService.active_users(30)
+            wow = await AnalyticsService.wow_growth()
+            mom = await AnalyticsService.mom_growth()
+            aum = await AnalyticsService.total_aum()
+            avg_deals = await AnalyticsService.avg_deals()
             activation = await AnalyticsService.calculate_activation_rate()
             retention1 = await AnalyticsService.calculate_retention(1)
             retention7 = await AnalyticsService.calculate_retention(7)
             retention30 = await AnalyticsService.calculate_retention(30)
+            retention90 = await AnalyticsService.calculate_retention(90)
             churn = await AnalyticsService.calculate_churn_risk()
             avg_portfolio = await AnalyticsService.calculate_avg_portfolio_size()
             avg_goals = await AnalyticsService.calculate_avg_goals_per_user()
+            rebalance = await session.scalar(
+                select(func.count(func.distinct(AnalyticsEvent.user_id)))
+                .where(AnalyticsEvent.event_name == "portfolio.rebalanced"))
             return {
                 "users": users,
                 "portfolios": portfolios,
                 "goals": goals,
                 "events": events,
                 "dau": dau,
+                "wau": wau,
+                "mau": mau,
+                "wow": wow,
+                "mom": mom,
+                "aum": aum,
                 "activation": activation,
                 "retention1": retention1,
                 "retention7": retention7,
                 "retention30": retention30,
+                "retention90": retention90,
                 "churn": churn,
                 "avg_portfolio": avg_portfolio,
-                "avg_goals": avg_goals}
+                "avg_goals": avg_goals,
+                "avg_deals": avg_deals,
+                "rebalance_quantity": rebalance,
+                "new_1d": new_1d,
+                "new_7d": new_7d,
+                "new_30d": new_30d,
+                "new_90d": new_90d}
 
 
     @staticmethod

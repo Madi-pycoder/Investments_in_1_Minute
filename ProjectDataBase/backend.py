@@ -1,11 +1,15 @@
 import time
 import asyncio
 import yfinance as yf
-from sqlalchemy import select, delete, text, update
+import logging
+from sqlalchemy import select, delete, update
 from MainEngines.auto_invest_engine import get_cached_metrics
 from ProjectDataBase.cache import portfolio_data_cache, diagnosis_cache, portfolio_cache, PORTFOLIO_VIEW_CACHE
 from ProjectDataBase.models import (Owner, Demo, Portfolio, Position, MarketPrice,
     Transaction, Goal, async_session, PortfolioSettings)
+
+logger = logging.getLogger(__name__)
+
 def make_portfolio_cache_key(positions):
     normalized = sorted(
         [(p["ticker"], round(p["weight"], 4))for p in positions])
@@ -28,7 +32,7 @@ async def preload_diagnosis(portfolio_id, data):
             "data": metrics,
             "ts": time.time()}
     except Exception as e:
-        print("preload_diagnosis ERROR:", e)
+        logger.info("preload_diagnosis ERROR:", e)
 
 def get_diagnosis_cached(portfolio_id):
     item = diagnosis_cache.get(portfolio_id)
@@ -69,10 +73,6 @@ async def buy_position(portfolio_id, ticker, qty, price, category_id):
     async with async_session() as session:
         if category_id is None:
             raise ValueError(f"category_id is None for {ticker}")
-        result = await session.execute(text("SELECT current_database()"))
-        print("CURRENT DB =", result.scalar())
-        result = await session.execute(text("SELECT * FROM categories"))
-        print("CATEGORIES =", result.fetchall())
         existing = await session.scalar(
             select(Position).where(
                 Position.portfolio_id == portfolio_id,
@@ -94,10 +94,6 @@ async def buy_position(portfolio_id, ticker, qty, price, category_id):
                     average_price=price,
                     category_id=category_id))
         await session.commit()
-        result = await session.execute(text("SELECT current_database()"))
-        print("BUY DB =", result.scalar())
-        result = await session.execute(text("SELECT * FROM categories"))
-        print("BUY CATEGORIES =", result.fetchall())
         await session.commit()
         PORTFOLIO_VIEW_CACHE.pop(portfolio_id, None)
         portfolio_cache.pop(portfolio_id, None)
@@ -224,8 +220,6 @@ async def execute_rebalance(portfolio_id, trades):
                 MarketPrice.ticker.in_(tickers)))
         prices_dict = {ticker: price
             for ticker, price in  result.all()}
-        print("PLAN:", trades)
-        print("PRICES:", prices_dict)
         executed_trades = []
         for t in trades:
             ticker = t["ticker"]

@@ -271,10 +271,6 @@ async def goal_fix(callback: CallbackQuery, state: FSMContext):
             "• недостаточно данных для анализа")
         return
     best = optimizations[0]
-    logger.debug("POSITIONS_DATA: %s", positions_data)
-    logger.debug("REAL POSITIONS: %s", [p["ticker"] for p in positions_data])
-    for p in positions_data:
-        logger.debug("Position ticker: %s", p["ticker"])
     target_weights = build_goal_based_weights(
         positions_data,
         goals, best["risk"])

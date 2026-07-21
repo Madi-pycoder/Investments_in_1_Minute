@@ -29,8 +29,6 @@ router = Router()
 
 @router.callback_query(F.data == "stocks")
 async def cmd_stocks(callback: CallbackQuery, state: FSMContext):
-    logger.debug("MARKETHANDLER IMPORTED")
-    logger.debug("STOCKS START")
     await state.set_state(Mode.waiting_for_ticker)
     await state.update_data(type="stocks")
     await callback.message.answer(
@@ -370,7 +368,7 @@ async def analyze_ticker(message: Message, state: FSMContext):
             "уровень риска и соответствие Шариату.")
         start = time.perf_counter()
         data = await get_etf_info(ticker)
-        print("ETF INFO-Market:", time.perf_counter() - start)
+        logger.info("ETF INFO-Market:", time.perf_counter() - start)
         if "error" in data:
             await message.answer(data["error"])
             return
@@ -459,9 +457,6 @@ async def analyze_ticker(message: Message, state: FSMContext):
             last_screening=screening,
             last_risk_score=risk_etf['risk_score'],
             last_risk_label=risk_etf['risk_label'])
-        print("SAVED STATE: ", await state.get_data())
-        print("MESSAGE =", message)
-        print("FROM USER =", message.from_user)
         asyncio.create_task(
             AnalyticsService.track_event(
                 user_id=message.from_user.id,
@@ -480,17 +475,12 @@ async def ticker_handler(message, state):
 
 @router.callback_query(F.data.startswith("quick_"))
 async def quick_ticker(callback: CallbackQuery, state: FSMContext):
-    print("QUICK CALLBACK FIRED")
     ticker = callback.data.replace("quick_", "")
-    print("CALLBACK DATA =", callback.data)
-    print(
-        "CURRENT FSM =",
-        await state.get_data())
     fake_message = callback.message.model_copy(update={"text": ticker})
     try:
         await analyze_ticker(fake_message, state)
     except Exception as e:
-        print("QUICK ERROR:", repr(e))
+        logger.info("QUICK ERROR:", repr(e))
         traceback.print_exc()
 
 
@@ -500,7 +490,7 @@ async def deep_analysis_handler(callback: CallbackQuery,
         state: FSMContext):
     data = await state.get_data()
     mode_type = data.get("type")
-    print("DEEP AUDIT STATE: ", data)
+    logger.info("DEEP AUDIT STATE: ", data)
     ticker = data.get("last_ticker")
     if not ticker:
         await callback.message.answer("⚠️ Сперва сделайте анализ.")

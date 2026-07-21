@@ -13,6 +13,9 @@ from ProfileData.user_profile import get_user_profile, create_portfolio_profile,
 from MainEngines.robo_engine import RoboAdvisor
 from Explanation.financial_brain import FinancialBrain
 from VisualFeatures import keyboards as kb
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ProfileSetup(StatesGroup):
     income = State()
@@ -27,7 +30,7 @@ async def preload_diagnosis(portfolio_id, data):
             "data": metrics,
             "ts": time.time()}
     except Exception as e:
-        print("preload_diagnosis ERROR:", e)
+        logger.info("preload_diagnosis ERROR:", e)
 
 def get_diagnosis_cached(portfolio_id):
     item = diagnosis_cache.get(portfolio_id)

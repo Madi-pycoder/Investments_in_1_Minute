@@ -31,7 +31,7 @@ async def auto_invest_job():
         try:
             await run_auto_invest_for_user(user.user_id, user.portfolio_id)
         except Exception as e:
-            print("AUTO INVEST ERROR:", e)
+            logger.info("AUTO INVEST ERROR:", e)
 
 
 async def get_all_users():

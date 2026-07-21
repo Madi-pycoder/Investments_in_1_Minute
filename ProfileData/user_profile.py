@@ -121,7 +121,6 @@ def db_to_portfolio_profile(db: PortfolioSettings):
 
 
 def get_effective_monthly_budget(portfolio_profile, total_value=None):
-    print("PROFILE_BUDGET", getattr(portfolio_profile, "monthly_budget", None))
     try:
         if isinstance(portfolio_profile, (int, float)):
             return float(portfolio_profile)

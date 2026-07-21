@@ -7,6 +7,10 @@ from ProjectDataBase.models import (
     StockFundamentals,)
 from datetime import datetime, timedelta, timezone
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
+
 def ensure_utc(dt):
     if dt is None:
         return None
@@ -33,7 +37,7 @@ async def get_cached_price(ticker):
                 await session.commit()
             except Exception as e:
                 await session.rollback()
-                print("UPDATE PRICE ERROR:", e)
+                logger.info("UPDATE PRICE ERROR:", e)
             market = await session.scalar(
                 select(MarketPrice).where(
                     MarketPrice.ticker == ticker))
@@ -81,7 +85,7 @@ async def get_cached_fundamentals(ticker):
                 await update_fundamentals(ticker, session)
                 await session.commit()
             except Exception as e:
-                print("FUNDAMENTALS UPDATE ERROR:", e)
+                logger.info("FUNDAMENTALS UPDATE ERROR:", e)
             data = await session.scalar(
                 select(StockFundamentals).where(
                     StockFundamentals.ticker == ticker))

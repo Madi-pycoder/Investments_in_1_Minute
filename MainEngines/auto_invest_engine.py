@@ -1,5 +1,6 @@
 import asyncio
 import time
+import logging
 from datetime import datetime, timedelta, timezone
 from Portfolio_info.portfolio_compute import compute_portfolio_metrics
 from Portfolio_info.portfolio_data import load_portfolio_data
@@ -11,12 +12,13 @@ from ProfileData.user_profile import (get_portfolio_profile, update_portfolio_pr
 from MainEngines.robo_engine import RoboAdvisor
 from ProjectDataBase import backend as rq
 
+logger = logging.getLogger(__name__)
 
 async def safe_async(coro, default=None):
     try:
         return await coro
     except Exception as e:
-        print("Error:", e)
+        logger.info("Error:", e)
         return default
 
 def build_metrics_cache_key(portfolio_id, data):

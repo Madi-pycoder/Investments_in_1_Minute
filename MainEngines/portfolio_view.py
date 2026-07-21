@@ -1,7 +1,9 @@
 from aiogram import Router
 from aiogram.types import InlineKeyboardButton
 from ProjectDataBase.backend import get_goals
+import logging
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 async def calculate_portfolio_shariah(positions_data):
@@ -17,7 +19,7 @@ async def calculate_portfolio_shariah(positions_data):
             else:
                 non_compliant.append({"ticker": position["ticker"], "weight": weight})
         except Exception as e:
-            print("SHARIAH ERROR:", position["ticker"], e)
+            logger.info("SHARIAH ERROR:", position["ticker"], e)
             continue
     if total_weight == 0:
         return "Не доступно"

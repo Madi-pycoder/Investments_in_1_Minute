@@ -6,8 +6,11 @@ from ProjectDataBase import backend as rq
 from VisualFeatures import keyboards as kb
 from sqlalchemy import select
 from ProjectDataBase.models import async_session as session, Category
+import logging
 
+logger = logging.getLogger(__name__)
 router = Router()
+
 class Trade(StatesGroup):
     waiting_for_quantity = State()
 class SellFlow(StatesGroup):
@@ -16,12 +19,6 @@ class SellFlow(StatesGroup):
 
 @router.callback_query(F.data == "buy")
 async def buy_handler(callback: CallbackQuery, state: FSMContext):
-    async with session() as s:
-        result = await s.execute(select(Category))
-        categories = result.scalars().all()
-    print("CATEGORIES:")
-    for c in categories:
-        print(c.id, c.name)
     data = await state.get_data()
     if not data.get("last_ticker"):
         await callback.message.answer(
@@ -30,7 +27,6 @@ async def buy_handler(callback: CallbackQuery, state: FSMContext):
             "ИЛИ выберите готовую подборку 👇", reply_markup=kb.stock_categories)
         return
     await state.update_data(trade_type="buy")
-    print("STATE SET TO WAITING_FOR_QUANTITY")
     await state.set_state(Trade.waiting_for_quantity)
     await callback.answer()
     await callback.message.answer("Введите количество для покупки:")
@@ -53,13 +49,12 @@ async def sell_handler(callback: CallbackQuery, state: FSMContext):
 
 @router.message(Trade.waiting_for_quantity)
 async def process_trade(message: Message, state: FSMContext):
-    print("PROCESS_TRADE ENTERED")
     try:
         qty = float(message.text)
         if qty <= 0:
             raise ValueError
     except Exception as e:
-        print("ERROR:", e)
+        logger.info("ERROR:", e)
         await message.answer("❌ Введите корректное число.")
         return
     data = await state.get_data()
@@ -105,7 +100,6 @@ async def process_trade(message: Message, state: FSMContext):
 async def sell_asset(callback: CallbackQuery, state: FSMContext):
     ticker = callback.data.removeprefix("sell_")
     data = await state.get_data()
-    print(await state.get_data())
     positions = await rq.get_positions(data["portfolio_id"])
     position = next((p for p in positions if p.ticker == ticker), None)
     if not position:
@@ -172,7 +166,6 @@ async def sell_quantity(message: Message, state: FSMContext):
 async def sell_percentage(callback, state):
     percent = int(callback.data.removeprefix("sell%"))
     data = await state.get_data()
-    print(await state.get_data())
     positions = await rq.get_positions(data["portfolio_id"])
     position = next((p for p in positions
         if p.ticker == data["sell_ticker"]), None)
