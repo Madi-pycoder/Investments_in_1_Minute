@@ -6,6 +6,7 @@ from aiogram.types import Message, CallbackQuery
 from ProfileData.user_profile import get_user_profile, create_user_profile, update_user_profile
 from ReviewsAndReferrals.referral_service import ReferralService
 from VisualFeatures import keyboards as kb
+from VisualFeatures.gamification import ensure_profile
 from ProjectDataBase import backend as rq
 
 router = Router()
@@ -19,6 +20,7 @@ class WelcomeQuiz(StatesGroup):
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, state: FSMContext):
     await rq.set_user(message.from_user.id)
+    await ensure_profile(message.from_user.id)
     profile = await get_user_profile(message.from_user.id)
     if profile is None:
         profile = await create_user_profile(message.from_user.id)

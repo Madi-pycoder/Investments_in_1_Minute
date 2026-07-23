@@ -9,6 +9,8 @@ from ProfileData.user_profile import update_user_profile, update_portfolio_profi
 from Portfolio_Handlers.portfolio_auto_handler import build_auto_invest_response
 from ProjectDataBase import backend as rq
 from VisualFeatures import keyboards as kb
+from VisualFeatures.gamification import ensure_profile, add_portfolio, update_streak, add_goal, XP_ANALYSIS, \
+    add_xp, notify_progress, check_goal_achievements
 
 
 class Reg(StatesGroup):
@@ -51,10 +53,9 @@ async def portfolio_hub(callback: CallbackQuery):
             "• Проверять состав портфеля")
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="🚀 Создать портфель",
-                        callback_data="create_demo")]])
+                [InlineKeyboardButton(
+                    text="🚀 Создать портфель",
+                    callback_data="create_demo")]])
         await callback.message.answer(
             text,
             reply_markup=keyboard)
@@ -155,6 +156,9 @@ async def cmd_regend(message: Message, state: FSMContext):
     portfolio_id = await rq.create_demo_portfolio(
         tg_id=message.from_user.id,
         demo_name=data['name_demo'])
+    await ensure_profile(message.from_user.id)
+    await update_streak(message.from_user.id)
+    await add_portfolio(message.from_user.id)
     asyncio.create_task(
         AnalyticsService.track_event(
             user_id=message.from_user.id,
@@ -197,8 +201,7 @@ async def goal_start(callback: CallbackQuery, state: FSMContext):
 async def goal_pick(callback: CallbackQuery, state: FSMContext):
     goal_name = callback.data.replace("goal_", "")
     if goal_name == "custom":
-        await state.set_state(
-            GoalQuiz.custom_goal_name)
+        await state.set_state(GoalQuiz.custom_goal_name)
         await callback.message.answer("✍️ Введите название цели:")
         return
     await state.update_data(goal_name=goal_name)
@@ -267,7 +270,7 @@ async def custom_goal_timeline(message: Message, state: FSMContext):
         reply_markup=kb.goal_compliance)
 
 @router.callback_query(GoalQuiz.waiting_compliance,F.data.startswith("compliance_"))
-async def goal_finish(callback: CallbackQuery, state: FSMContext):
+async def goal_finish(callback: CallbackQuery, state: FSMContext, bot):
     compliance = callback.data.replace("compliance_","")
     data = await state.get_data()
     portfolio_id = data.get("portfolio_id")
@@ -279,6 +282,8 @@ async def goal_finish(callback: CallbackQuery, state: FSMContext):
         "priority": 2,
         "compliance": compliance}
     await rq.add_goal(goal)
+    await update_streak(callback.from_user.id)
+    await add_goal(callback.from_user.id)
     await state.clear()
     await state.set_data({"portfolio_id": portfolio_id})
     await callback.message.answer(
@@ -288,6 +293,9 @@ async def goal_finish(callback: CallbackQuery, state: FSMContext):
         "Теперь можно автоматически проверять,\n"
         "успеваете ли вы к своей цели.",
         reply_markup=kb.after_create_goal)
+    xp = await add_xp(callback.from_user.id, XP_ANALYSIS)
+    achievements = await check_goal_achievements(callback.from_user.id)
+    await notify_progress(bot, callback.from_user.id, xp, achievements)
     asyncio.create_task(
         AnalyticsService.track_event(
             user_id=callback.from_user.id,

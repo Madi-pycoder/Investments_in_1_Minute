@@ -5,7 +5,7 @@ import traceback
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
-from aiogram import F, Router
+from aiogram import F, Router, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, FSInputFile
 from ProjectDataBase.analytics import AnalyticsService
@@ -14,6 +14,8 @@ from aiogram.fsm.state import State, StatesGroup
 from MainMetricsComputingFeatures.shariah import shariah_screen, shariah_screen_etf_full
 from MainMetricsComputingFeatures.riskmanagement import get_risk_metrics_cached, calculate_etf_risk
 from ReviewsAndReferrals.referral_service import ReferralService
+from VisualFeatures.gamification import update_streak, add_analysis, notify_progress, add_xp, XP_ANALYSIS, \
+    check_analysis_achievements
 from VisualFeatures.renderer import format_shariah, format_money, format_percent, risk_bar
 from VisualFeatures.charts import generate_asset_growth_graph
 from VisualFeatures import keyboards as kb
@@ -191,7 +193,7 @@ async def analyze_again_etfs(callback: CallbackQuery, state: FSMContext):
         "• QQQ — крупнейшие технологии США", reply_markup=kb.etf_categories)
 
 
-async def analyze_ticker(message: Message, state: FSMContext):
+async def analyze_ticker(message: Message, state: FSMContext, bot):
     try:
         mode = await state.get_data()
         mode_type = mode.get("type")
@@ -464,13 +466,18 @@ async def analyze_ticker(message: Message, state: FSMContext):
                 category="invest",
                 event_data={"ticker": ticker,
                     "asset_type": "etf"}))
+        await update_streak(message.from_user.id)
+        await add_analysis(message.from_user.id)
+        xp = await add_xp(message.from_user.id, XP_ANALYSIS)
+        achievements = await check_analysis_achievements(message.from_user.id)
+        await notify_progress(bot, message.from_user.id, xp, achievements)
         asyncio.create_task(GrowthTriggers.trigger_after_first_analysis(message))
         return
 
 
 @router.message(Mode.waiting_for_ticker)
 async def ticker_handler(message, state):
-    await analyze_ticker(message, state)
+    await analyze_ticker(message, state, bot=Bot)
 
 
 @router.callback_query(F.data.startswith("quick_"))
@@ -478,7 +485,7 @@ async def quick_ticker(callback: CallbackQuery, state: FSMContext):
     ticker = callback.data.replace("quick_", "")
     fake_message = callback.message.model_copy(update={"text": ticker})
     try:
-        await analyze_ticker(fake_message, state)
+        await analyze_ticker(fake_message, state, bot=Bot)
     except Exception as e:
         logger.info("QUICK ERROR:", repr(e))
         traceback.print_exc()

@@ -8,6 +8,8 @@ from sqlalchemy import select
 from ProjectDataBase.models import async_session as session, Category
 import logging
 
+from VisualFeatures.gamification import unlock
+
 logger = logging.getLogger(__name__)
 router = Router()
 

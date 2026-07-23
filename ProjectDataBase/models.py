@@ -276,6 +276,30 @@ class GrowthPromoState(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class UserGamification(Base):
+    __tablename__ = "user_gamification"
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("owners.tg_id"), primary_key=True)
+    xp: Mapped[int] = mapped_column(Integer, default=0)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    streak_days: Mapped[int] = mapped_column(Integer, default=0)
+    last_active: Mapped[date | None] = mapped_column(Date, nullable=0)
+    analysis_count: Mapped[int] = mapped_column(Integer, default=0)
+    buy_count: Mapped[int] = mapped_column(Integer, default=0)
+    sell_count: Mapped[int] = mapped_column(Integer, default=0)
+    portfolio_count: Mapped[int] = mapped_column(Integer, default=0)
+    goal_count: Mapped[int] = mapped_column(Integer, default=0)
+    achievements_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class UserAchievement(Base):
+    __tablename__ = "user_achievements"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("owners.tg_id"), index=True)
+    achievement: Mapped[str] = mapped_column(String(80))
+    unlocked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = UniqueConstraint("user_id", "achievement")
+
+
 async def seed_categories():
     async with async_session() as session:
         stocks = await session.scalar(

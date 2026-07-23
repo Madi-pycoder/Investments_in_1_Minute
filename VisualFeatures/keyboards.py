@@ -54,22 +54,22 @@ portfolio_dashboard = InlineKeyboardMarkup(
             callback_data="goal_fix")],
         [InlineKeyboardButton(
             text="🚀 Авто-Инвестиции",
-            callback_data="auto_invest")],
-        [InlineKeyboardButton(
+            callback_data="auto_invest"),
+        InlineKeyboardButton(
             text="🎯 Цели",
-            callback_data="what_if"),
-        InlineKeyboardButton(
-            text="👥 Пригласить друзей",
-            callback_data="referral_menu")],
+            callback_data="what_if")],
         [InlineKeyboardButton(
-            text="🔄 Мои Портфели",
-            callback_data="portfolio_hub"),
+            text="👥 Пригласить друзей",
+            callback_data="referral_menu"),
         InlineKeyboardButton(
+            text="🔄 Мои Портфели",
+            callback_data="portfolio_hub")],
+        [InlineKeyboardButton(
             text="➕ Добавить Цель",
             callback_data="goal_settings")],
-        [InlineKeyboardButton(
+        InlineKeyboardButton(
             text="🏠 Главное меню",
-            callback_data="main_menu")]])
+            callback_data="main_menu")])
 
 
 
@@ -87,7 +87,10 @@ popular_etfs = InlineKeyboardMarkup(
             callback_data="quick_SPY"),
         InlineKeyboardButton(
             text="QQQ",
-            callback_data="quick_QQQ")]])
+            callback_data="quick_QQQ")],
+        [InlineKeyboardButton(
+            text="🏠 Главное меню",
+            callback_data="main_menu")]])
 
 
 stock_categories = InlineKeyboardMarkup(
@@ -103,7 +106,9 @@ stock_categories = InlineKeyboardMarkup(
             callback_data="stock_safe")],
         [InlineKeyboardButton(
             text="📈 Популярные",
-            callback_data="stock_popular")]])
+            callback_data="stock_popular")],
+        [InlineKeyboardButton(text="◀️ Назад",
+            callback_data="stocks")]])
 
 growth_stocks = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -118,7 +123,9 @@ growth_stocks = InlineKeyboardMarkup(
             callback_data="quick_TSLA"),
         InlineKeyboardButton(
             text="META",
-            callback_data="quick_META")]])
+            callback_data="quick_META")],
+        [InlineKeyboardButton(text="◀️ Назад",
+            callback_data="stocks")]])
 
 shariah_stocks = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -133,7 +140,9 @@ shariah_stocks = InlineKeyboardMarkup(
             callback_data="quick_TSM"),
         InlineKeyboardButton(
             text="NVDA",
-            callback_data="quick_NVDA")]])
+            callback_data="quick_NVDA")],
+        [InlineKeyboardButton(text="◀️ Назад",
+            callback_data="stocks")]])
 
 safe_stocks = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -148,7 +157,10 @@ safe_stocks = InlineKeyboardMarkup(
             callback_data="quick_JNJ"),
         InlineKeyboardButton(
             text="KO",
-            callback_data="quick_KO")]])
+            callback_data="quick_KO")],
+        [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data="stocks")]])
 
 popular_stocks = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -163,7 +175,10 @@ popular_stocks = InlineKeyboardMarkup(
             callback_data="quick_TSLA"),
         InlineKeyboardButton(
             text="MSFT",
-            callback_data="quick_MSFT")]])
+            callback_data="quick_MSFT")],
+        [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data="stocks")]])
 
 
 
@@ -181,7 +196,10 @@ etf_categories = InlineKeyboardMarkup(
             callback_data="etf_world")],
         [InlineKeyboardButton(
             text="🛡 Для начинающих",
-            callback_data="etf_beginner")]])
+            callback_data="etf_beginner")],
+        [InlineKeyboardButton(
+            text="🏠 Главное меню",
+            callback_data="main_menu")]])
 
 shariah_etfs = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -193,7 +211,10 @@ shariah_etfs = InlineKeyboardMarkup(
             callback_data="quick_HLAL")],
         [InlineKeyboardButton(
             text="UMMA",
-            callback_data="quick_UMMA")]])
+            callback_data="quick_UMMA")],
+        [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data="etfs")]])
 
 tech_etfs = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -205,7 +226,10 @@ tech_etfs = InlineKeyboardMarkup(
             callback_data="quick_HLAL")],
         [InlineKeyboardButton(
             text="QQQ",
-            callback_data="quick_QQQ")]])
+            callback_data="quick_QQQ")],
+        [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data="etfs")]])
 
 for_beginners_etfs = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -217,7 +241,10 @@ for_beginners_etfs = InlineKeyboardMarkup(
             callback_data="quick_GLD")],
         [InlineKeyboardButton(
             text="UMMA",
-            callback_data="quick_UMMA")]])
+            callback_data="quick_UMMA")],
+        [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data="etfs")]])
 
 world_etfs = InlineKeyboardMarkup(
     inline_keyboard=[
@@ -229,7 +256,10 @@ world_etfs = InlineKeyboardMarkup(
             callback_data="quick_ACWI")],
         [InlineKeyboardButton(
             text="UMMA",
-            callback_data="quick_UMMA")]])
+            callback_data="quick_UMMA")],
+        [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data="etfs")]])
 
 
 goal_name_quiz = InlineKeyboardMarkup(

@@ -7,6 +7,7 @@ from MainEngines.auto_invest_engine import get_cached_metrics
 from ProjectDataBase.cache import portfolio_data_cache, diagnosis_cache, portfolio_cache, PORTFOLIO_VIEW_CACHE
 from ProjectDataBase.models import (Owner, Demo, Portfolio, Position, MarketPrice,
     Transaction, Goal, async_session, PortfolioSettings)
+from VisualFeatures.gamification import add_buy, update_streak, add_sell
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,10 @@ async def buy_position(portfolio_id, ticker, qty, price, category_id):
         portfolio_data_cache.pop(portfolio_id, None)
         diagnosis_cache.pop(portfolio_id, None)
         await recalculate_portfolio_value(portfolio_id)
+        portfolio = await session.get(Portfolio, portfolio_id)
+        owner = await session.get(Owner, portfolio.owner_id)
+        await update_streak(owner.tg_id)
+        await add_buy(owner.tg_id)
 
 
 async def sell_position(portfolio_id, ticker, qty):
@@ -123,6 +128,10 @@ async def sell_position(portfolio_id, ticker, qty):
         portfolio_data_cache.pop(portfolio_id, None)
         diagnosis_cache.pop(portfolio_id, None)
         await recalculate_portfolio_value(portfolio_id)
+        portfolio = await session.get(Portfolio, portfolio_id)
+        owner = await session.get(Owner, portfolio.owner_id)
+        await update_streak(owner.tg_id)
+        await add_sell(owner.tg_id)
         return True, "Продажа выполнена"
 
 
