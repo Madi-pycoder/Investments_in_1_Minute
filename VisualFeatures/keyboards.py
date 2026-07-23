@@ -418,3 +418,29 @@ referral_menu = InlineKeyboardMarkup(
         [InlineKeyboardButton(
             text="🏠 Главное меню",
             callback_data="main_menu")]])
+
+
+representative_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(
+            text="💰 < 100 тысяч тенге",
+            callback_data="lt100k")],
+        [InlineKeyboardButton(
+            text="💰 100 тысяч-500 тысяч тенге",
+            callback_data="100_500")],
+        [InlineKeyboardButton(
+            text="💰 500 тысяч-2 млн тенге",
+            callback_data="500_2m")],
+        [InlineKeyboardButton(
+            text="💰 > 2 млн тенге",
+            callback_data="gt2m")]])
+
+
+after_welcome_sequence = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(
+            text="📱 Apple",
+            callback_data="quick_AAPL")],
+        [InlineKeyboardButton(
+            text="🤖 NVIDIA",
+            callback_data="quick_NVDA")]])

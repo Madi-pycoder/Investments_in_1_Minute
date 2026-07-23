@@ -55,6 +55,7 @@ async def what_if_flow(callback: CallbackQuery, state: FSMContext):
     robo = RoboAdvisor(user_profile, portfolio_profile,
             metrics, portfolio_data)
     scenarios = robo.run_what_if()
+    goal_progress = robo.get_goal_progress()
     if not scenarios:
         await callback.message.answer(
             "🎯 Пока нет финансовых целей.\n\n"
@@ -67,6 +68,13 @@ async def what_if_flow(callback: CallbackQuery, state: FSMContext):
     for goal_data in scenarios:
         goal_name = goal_data["goal"]
         text += f"🎯 {goal_name}\n\n"
+        progress_item = next(
+            (x for x in goal_progress
+                if x["goal"] == goal_name), None)
+        if progress_item:
+            text += (
+                f"📈 Прогресс: "
+                f"{int(progress_item['progress_now'] * 100)}%\n\n")
         scenario_list = goal_data.get("scenarios") or []
         if not scenario_list:
             text += "Нет доступных сценариев.\n\n"

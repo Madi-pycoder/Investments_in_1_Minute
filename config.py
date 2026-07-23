@@ -33,3 +33,10 @@ STANDARD_CONFIG = {
         "interest_limit": 0.05,
         "denominator": "total_assets"}}
 SHARIAH_BUFFER = 0.02
+
+
+REPRESENTATIVE = {
+    "lt100k": 50_000,
+    "100_500": 300_000,
+    "500_2m": 1_250_000,
+    "gt2m": 2_500_000,}

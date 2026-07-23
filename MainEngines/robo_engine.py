@@ -47,18 +47,18 @@ class RoboAdvisor:
         if not self.positions:
             return {
                 "ok": False,
-                "status": "no_positions",
+                "status": "Нет позиций",
                 "plan": [],
-                "reason": "Portfolio has no positions"}
+                "reason": "В портфеле нет активов"}
         monthly_budget = (get_effective_monthly_budget(
             self.portfolio_profile,
             self.total_value))
         if monthly_budget <= 0:
             return {
                 "ok": False,
-                "status": "no_budget",
+                "status": "Нет бюджета",
                 "plan": [],
-                "reason": "Monthly budget is not configured"}
+                "reason": "Ежемесячный бюджет не указан"}
         base_vol = (self.risk.get("volatility") or 15) / 100
         risk_multiplier = get_risk_multiplier(self.portfolio_profile)
         adjusted_vol = base_vol * risk_multiplier
@@ -161,3 +161,6 @@ class RoboAdvisor:
             return []
         self._cached_nudges = generate_smart_nudges(goal_analysis)
         return self._cached_nudges
+
+    def get_goal_progress(self):
+        return self.metrics.get("goal_progress")

@@ -171,6 +171,8 @@ class UserProfileDB(Base):
     first_auto_invest_done: Mapped[bool] = mapped_column(Boolean, default=False)
     welcome_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     welcome_seen: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False)
+    last_notification_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    last_notification_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class AnalyticsEvent(Base):
     __tablename__ = "analytics_events"

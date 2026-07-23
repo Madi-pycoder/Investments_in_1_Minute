@@ -8,6 +8,7 @@ from ReviewsAndReferrals.referral_service import ReferralService
 from VisualFeatures import keyboards as kb
 from VisualFeatures.gamification import ensure_profile
 from ProjectDataBase import backend as rq
+from config import REPRESENTATIVE
 
 router = Router()
 
@@ -32,9 +33,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
             await ReferralService.increment_click(referral.owner_id)
         ok, reason = await ReferralService.can_use_code(message.from_user.id, code)
         if ok:
-            if ok:
-                await update_user_profile(message.from_user.id,
-                    pending_referral_code=code)
+            await update_user_profile(message.from_user.id, pending_referral_code=code)
         elif reason == "invalid_code":
             await message.answer("❌ К сожалению, ссылка нерабочая")
         elif reason == "self_referral":
@@ -43,8 +42,7 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
             await message.answer("❌ Вы уже зарегистрированы по другой ссылке.")
     if profile.welcome_completed:
         await state.clear()
-        await message.answer("👋 С возвращением!",
-            reply_markup=kb.maind)
+        await message.answer("👋 С возвращением!", reply_markup=kb.maind)
         return
     elif profile.welcome_seen:
         await state.clear()
@@ -59,48 +57,40 @@ async def cmd_start(message: Message, command: CommandObject, state: FSMContext)
             "а потому что покупают активы вслепую.\n\n"
             "Давайте быстро посчитаем,\n"
             "сколько это может стоить именно вам.\n\n"
-            "💰 Сколько у вас сейчас накоплений?\n\n"
-            "Например:\n"
-            "100000 тенге\n"
-            "300000 тенге\n"
-            "1000000 тенге")
+            "💰 Сколько у вас сейчас накоплений?\n\n",
+            reply_markup=kb.representative_keyboard)
 
 
-@router.message(WelcomeQuiz.savings)
-async def welcome_savings(message: Message, state: FSMContext):
-    try:
-        savings = float(message.text.replace(",", "."))
-    except ValueError:
-        await message.answer(
-            "Введите сумм числом.\n\n"
-            "Например:\n"
-            "100000")
-        return
-    await state.update_data(savings=savings)
+@router.callback_query(WelcomeQuiz.savings, F.data.in_(REPRESENTATIVE.keys()))
+async def welcome_savings(callback: CallbackQuery, state: FSMContext):
+    savings = REPRESENTATIVE[callback.data]
     expected_loss = savings * 0.09
-    await message.answer(
+    await callback.answer()
+    await callback.message.edit_text(
         f"📉 Если инвестировать случайно,\n"
-        "или оставлять сбережения без дела\n"
-        f"ошибки могут стоить около\n\n"
+        "или оставлять сбережения без дела,\n"
+        "ошибки могут стоить около\n\n"
         f"≈ ₸{expected_loss:,.0f} в год.\n\n"
         "Хорошая новость —\n"
         "многие ошибки можно увидеть заранее.\n\n"
-        "👇 Давайте проверим любую акцию или ETF.",
-        reply_markup=kb.maind)
+        "👇 Давайте проверим любую известную компанию.")
+    await callback.message.answer(
+        "Выберите, что хотите проверить:",
+        reply_markup=kb.after_welcome_sequence)
     await state.clear()
-    await update_user_profile(message.from_user.id,
+    await update_user_profile(callback.from_user.id,
         welcome_completed = True)
-    profile = await get_user_profile(message.from_user.id)
+    profile = await get_user_profile(callback.from_user.id)
     if profile.pending_referral_code:
         referral = await ReferralService.get_code(profile.pending_referral_code)
         if referral:
             await ReferralService.register_referral(inviter_id=referral.owner_id,
-                invited_id=message.from_user.id)
+                invited_id=callback.from_user.id)
             await ReferralService.increment_use(referral.owner_id)
-            await message.bot.send_message(referral.owner_id,
+            await callback.bot.send_message(referral.owner_id,
                 "🎉 Новый пользователь полностью завершил регистрацию по вашей ссылке!")
         await update_user_profile(
-            message.from_user.id,
+            callback.from_user.id,
             pending_referral_code=None)
 
 
@@ -113,5 +103,4 @@ async def back_to_menu(callback: CallbackQuery, state: FSMContext):
             await state.set_data({ "portfolio_id": portfolio_id})
         await callback.answer()
         await callback.message.answer(
-            "🏠 Главное меню",
-            reply_markup=kb.maind)
+            "🏠 Главное меню", reply_markup=kb.maind)

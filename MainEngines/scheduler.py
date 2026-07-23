@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from MainEngines.auto_invest_engine import run_auto_invest_for_user
 from ProjectDataBase.models import PortfolioSettings, async_session, UserProfileDB
 from MainEngines.notifications import get_notification
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 scheduler = AsyncIOScheduler()
 logger = logging.getLogger("halal")
@@ -37,9 +37,9 @@ async def auto_invest_job():
 async def get_all_users():
     async with async_session() as session:
         result = await session.scalars(
-            select(UserProfileDB.user_id).distinct())
-        users = result.all()
-        return list(users)
+            select(UserProfileDB.user_id)
+            .where(UserProfileDB.welcome_completed == True))
+        return result.all()
 
 
 async def notification_job():
@@ -51,6 +51,12 @@ async def notification_job():
         try:
             text = await get_notification(user)
             await bot.send_message(user, text)
+            async with async_session() as session:
+                await session.execute(
+                    update(UserProfileDB)
+                    .where(UserProfileDB.user_id == user)
+                    .values(last_notification_sent_at=datetime.now(timezone.utc)))
+                await session.commit()
         except Exception as e:
             logger.error("Notification error: %s", e)
 

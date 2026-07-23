@@ -101,7 +101,7 @@ async def build_auto_invest_response(user_id, portfolio_id):
             "empty_plan": (
                 "• Портфель уже хорошо распределён."
                 "Новые инвестиции будут добавляться пропорционально текущей стратегии.")}
-        text += reason_map.get(result["status"], "• Unknown error")
+        text += reason_map.get(result["status"], "• Неизвестная ошибка")
         return text, None
     plan = result["plan"]
     total = sum(x["amount"] for x in plan)

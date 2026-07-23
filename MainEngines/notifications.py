@@ -64,14 +64,15 @@ class NotificationContext:
     first_auto_done: int
     last_ticker_analyzed: str | None
     last_ticker: str | None
+    last_notification_sent_at: datetime | None
 
 
 async def build_context(user_id: int):
     async with async_session() as session:
         profile = await session.get(UserProfileDB, user_id)
+        last_notification_sent_at = profile.last_notification_sent_at
         portfolio = await session.scalar(
-            select(Portfolio).join_from(Portfolio, Portfolio, isouter=True)
-            .where(Portfolio.owner_id == user_id))
+            select(Portfolio).where(Portfolio.owner_id == user_id))
         if portfolio:
             positions = await session.scalars(select(Position)
                 .where(Position.portfolio_id == portfolio.id)).all()
@@ -90,6 +91,10 @@ async def build_context(user_id: int):
             select(AnalyticsEvent)
             .where(AnalyticsEvent.user_id == user_id,
                    AnalyticsEvent.event_name == "portfolio.rebalanced")
+            .order_by(AnalyticsEvent.created_at.desc()))
+        last_open = await session.scalar(select(AnalyticsEvent)
+            .where(AnalyticsEvent.user_id == user_id,
+                AnalyticsEvent.event_name == "portfolio.opened")
             .order_by(AnalyticsEvent.created_at.desc()))
 
         def days(event):
@@ -115,29 +120,39 @@ async def build_context(user_id: int):
             first_goal_done=profile.first_goal_done,
             first_rebalance_done=profile.first_rebalance_done,
             first_auto_done=profile.first_auto_invest_done,
-            last_ticker=ticker)
+            last_ticker=ticker,
+            last_open_days=days(last_open))
 
 
 
 async def get_notification(user_id: int):
     ctx = await build_context(user_id)
+    if (ctx.last_notification_sent_at and (
+        datetime.now(timezone.utc) - ctx.last_notification_sent_at).total_seconds() < 60 * 60 * 48):
+        return None
     if not ctx.first_analysis_done:
         return random.choice(NEW)
     if not ctx.has_goal:
         return random.choice(GOALS)
     if not ctx.has_portfolio:
         return random.choice(PORTFOLIO)
-    if not ctx.last_rebalance_days and ctx.last_rebalance_days > 30:
+    if (ctx.positions_count > 1
+            and (ctx.last_rebalance_days is None or ctx.last_rebalance_days > 30)):
         return random.choice(REBALANCE)
     if not ctx.auto_invest:
         return random.choice(AUTO)
-    if ctx.last_analysis_days and ctx.last_analysis_days > 14:
+    if (ctx.last_open_days is not None
+            and ctx.last_open_days > 30):
+        return random.choice(INACTIVE)
+    if ctx.last_analysis_days is not None and ctx.last_analysis_days > 14:
         return random.choice(INACTIVE)
     if ctx.last_ticker:
         return random.choice(TICKER).format(ticker=ctx.last_ticker)
-    if ctx.investment_style == "growth":
+    if (ctx.last_analysis_days is not None
+            and ctx.investment_style == "growth"):
         return random.choice(GROWTH)
-    if ctx.investment_style == "safe":
+    if (ctx.last_analysis_days is not None
+            and ctx.investment_style == "safe"):
         return random.choice(SAFE)
 
     return random.choice(BALANCED)

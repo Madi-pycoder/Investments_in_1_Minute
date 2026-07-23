@@ -1,9 +1,8 @@
 from aiogram import F, Router
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from Reviews.review_service import ReviewService
-from Reviews.review_states import ReviewStates
-from Reviews.review_keyboards import review_finish_keyboard, review_rating_keyboard
+from ReviewsAndReferrals.review_states import ReviewStates
+from ReviewsAndReferrals.review_keyboards import review_finish_keyboard, review_rating_keyboard
 
 router = Router()
 
@@ -31,11 +30,6 @@ async def choose_rating(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ReviewStates.waiting_text)
 async def save_review(message: Message, state: FSMContext):
-    data = await state.get_data()
-    rating = data["rating"]
-    review = await ReviewService.create_review(
-        user_id=message.from_user.id,
-        rating=rating, text=message.text)
     if len(message.text) < 10:
         await message.answer("Минимум 10 символов.")
         return

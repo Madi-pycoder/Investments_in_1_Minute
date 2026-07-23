@@ -87,18 +87,18 @@ async def run_auto_invest_for_user(user_id, portfolio_id):
     async with lock:
         if not portfolio_id:
             return {"ok": False,
-            "status": "invalid_portfolio"}
+            "status": "Ошибка с поиском портфеля"}
         profile = await get_portfolio_profile(portfolio_id)
         if not profile or not profile.auto_invest_enabled:
             return {"ok": False,
-            "status": "disabled"}
+            "status": "Авто-инвестирование выключено"}
         data = await load_portfolio_data(portfolio_id)
         if not data:
             return {"ok": False, "status": "no_data"}
         metrics = await get_cached_metrics(portfolio_id, data)
         if not metrics:
             return {"ok": False,
-                "status": "metrics_failed"}
+                "status": "Расчёт метрик не удалось"}
         robo = RoboAdvisor(
             user_profile=user_profile,
             portfolio_profile=portfolio_profile,
@@ -111,7 +111,7 @@ async def run_auto_invest_for_user(user_id, portfolio_id):
         plan = result["plan"]
         if not plan:
             return {"ok": False,
-                "status": "empty_plan"}
+                "status": "Не удалось составить план"}
         trades = []
         for item in plan:
             amount = float(item.get("amount", 0))
@@ -127,22 +127,22 @@ async def run_auto_invest_for_user(user_id, portfolio_id):
         if not trades:
             return {
                 "ok": False,
-                "status": "no_valid_trades"}
+                "status": "Нету сделок"}
         total_invest = sum(t["amount"] for t in trades)
         if total_invest <= 0:
             return {
                 "ok": False,
-                "status": "zero_investment"}
+                "status": "Не было инвестиций"}
         if not can_run_auto_invest(profile):
             return {
                 "ok": False,
-                "status": "too_early"}
+                "status": "Срок авто-инвестирования не прошёл"}
         fresh_profile = await get_portfolio_profile(portfolio_id)
         if (fresh_profile.next_auto_invest_at
             and fresh_profile.next_auto_invest_at > datetime.now(timezone.utc)):
             return {
                 "ok": False,
-                "status": "too_early"}
+                "status": "Срок авто-инвестирования не прошёл"}
         success, result, executed_trades = await rq.execute_rebalance(
             portfolio_id, trades)
         if not success:
@@ -152,7 +152,7 @@ async def run_auto_invest_for_user(user_id, portfolio_id):
         if not executed_trades:
             return {
                 "ok": False,
-                "status": "insufficient_cash"}
+                "status": "Недостаточно средств"}
         now = datetime.now(timezone.utc)
         monthly_budget = profile.monthly_budget
         await rq.deposit_monthly_budget(portfolio_id, monthly_budget)
@@ -162,6 +162,6 @@ async def run_auto_invest_for_user(user_id, portfolio_id):
             next_auto_invest_at=now + timedelta(days=30))
         return {
             "ok": True,
-            "status": "executed",
+            "status": "Исполнено",
             "trades": trades,
             "invested": total_invest}

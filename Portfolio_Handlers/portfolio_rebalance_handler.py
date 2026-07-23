@@ -7,7 +7,7 @@ from Portfolio_info.portfolio_data import load_portfolio_data
 from ProjectDataBase.analytics import AnalyticsService, build_portfolio_event_data
 from ProjectDataBase.cache import diagnosis_cache, rebalance_preview_cache, goal_fix_preview_cache, \
     portfolio_data_cache, PORTFOLIO_VIEW_CACHE
-from MainEngines.portoflio_rebalance import calculate_rebalance
+from MainEngines.portfolio_rebalance import calculate_rebalance
 from MarketFeatures.market import get_stocks_batch
 from ProjectDataBase.market_data_service import get_bulk_prices
 from MainMetricsComputingFeatures.riskmanagement import (calculate_portfolio_risk, calculate_portfolio_volatility, calculate_optimal_weights)
@@ -321,6 +321,12 @@ async def goal_fix(callback: CallbackQuery, state: FSMContext):
             sell_lines.append(line)
     text = ("🎯 План достижения цели\n\n"
             "Вот что можно изменить, чтобы увеличить вероятность достижения вашей цели")
+    progress = metrics.get("goal_progress", [])
+    if progress:
+        item = progress[0]
+        text += (
+            f"📈 Сейчас выполнено: "
+            f"{int(item['progress_now'] * 100)}%\n\n")
     if sell_lines:
         text += "📉 Уменьшить долю:\n"
         text += "\n".join(sell_lines)

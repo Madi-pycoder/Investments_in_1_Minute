@@ -33,6 +33,7 @@ class FinancialBrain:
     def goal_insights(self):
         items = []
         results = self.robo.analyze_goals()
+        progress = self.robo.get_goal_progress()
         if not results:
             return items
         positions_data = self.metrics.get("positions_data", [])
@@ -113,6 +114,15 @@ class FinancialBrain:
                 impact = (
                     "Увеличение регулярных вложений "
                     "повысит вероятность достижения цели.")
+            progress_map = {
+                p["goal"]: p
+                for p in progress}
+            goal_progress = progress_map.get(goal_name)
+            if goal_progress:
+                percent = int(goal_progress["progress_now"] * 100)
+                headline = (
+                    f"{headline}\n"
+                    f"Прогресс: {percent}%")
             items.append(
                 InsightCard(
                     id=str(uuid.uuid4()),

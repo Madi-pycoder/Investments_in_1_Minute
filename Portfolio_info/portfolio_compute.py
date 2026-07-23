@@ -1,9 +1,10 @@
 import asyncio
+from MainEngines.progress_engine import build_goal_progress
 from MainMetricsComputingFeatures.riskmanagement import calculate_portfolio_risk, generate_risk_alerts
 from MainEngines.shariah_optimizer import optimize_shariah_portfolio
 from MainEngines.sharpe_optimizer import optimize_by_sharpe
 from MainEngines.halal_portfolio_generator import generate_halal_portfolio
-from MainEngines.portoflio_rebalance import calculate_rebalance
+from MainEngines.portfolio_rebalance import calculate_rebalance
 from MainMetricsComputingFeatures.shariah import calculate_portfolio_purification, shariah_screen
 from Explanation.ai_explain import explain_portfolio_logic
 from MainEngines.goal_engine import (
@@ -209,8 +210,8 @@ async def compute_light_metrics(data):
         data.get("goals", []),
         volatility,
         monthly_budget)
+    goal_progress = build_goal_progress(goal_results, total_value)
     goal_scenarios = []
-
     for goal in data.get("goals", []):
         goal_scenarios.append({
             "goal": goal["name"],
@@ -222,6 +223,7 @@ async def compute_light_metrics(data):
         "total_value": total_value,
         "sector_exposure": sector_exposure,
         "goal_results": goal_results,
+        "goal_progress": goal_progress,
         "goal_scenarios": goal_scenarios}
 
 
